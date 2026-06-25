@@ -428,10 +428,16 @@
         <div class="progress-bar"><div class="progress-bar-fill green" id="pb-call-lt" style="width:0%"></div></div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Opt-out acumulado</div>
-        <div class="kpi-value" id="g-optout-acc">—%</div>
-        <div class="kpi-sub" id="g-optout-cur">actual: —%</div>
-        <div class="progress-bar"><div class="progress-bar-fill yellow" id="pb-optout" style="width:0%"></div></div>
+        <div class="kpi-label">Opt-out hoy</div>
+        <div class="kpi-value" id="g-optout-today">—%</div>
+        <div class="kpi-sub" id="g-optout-today-sub">— contactos hoy</div>
+        <div class="progress-bar"><div class="progress-bar-fill yellow" id="pb-optout-today" style="width:0%"></div></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Opt-out mes</div>
+        <div class="kpi-value" id="g-optout-month">—%</div>
+        <div class="kpi-sub" id="g-optout-month-sub">— contactos este mes</div>
+        <div class="progress-bar"><div class="progress-bar-fill yellow" id="pb-optout-month" style="width:0%"></div></div>
       </div>
     </div>
   </div>
@@ -962,12 +968,19 @@ async function renderOptout() {
   const subEl  = document.getElementById('g-optout-cur');
   const pbEl   = document.getElementById('pb-optout');
 
-  el.textContent  = data.rate.toFixed(2) + '%';
-  subEl.textContent = `~${data.dndEstimated.toLocaleString('es-CL')} de ${data.total.toLocaleString('es-CL')} contactos`;
-  pbEl.style.width = Math.min(100, data.rate * 10) + '%';
+  // hoy
+  const todayEl = document.getElementById('g-optout-today');
+  todayEl.textContent = data.todayRate.toFixed(2) + '%';
+  todayEl.className = 'kpi-value ' + (data.todayRate > 5 ? 'red' : data.todayRate > 3 ? 'yellow' : '');
+  document.getElementById('g-optout-today-sub').textContent = `${data.todayDnd} opt-outs de ${data.todayTotal} contactos hoy`;
+  document.getElementById('pb-optout-today').style.width = Math.min(100, data.todayRate * 10) + '%';
 
-  // color dinámico según umbral
-  el.className = 'kpi-value ' + (data.rate > 5 ? 'red' : data.rate > 3 ? 'yellow' : '');
+  // mes
+  const monthEl = document.getElementById('g-optout-month');
+  monthEl.textContent = data.monthRate.toFixed(2) + '%';
+  monthEl.className = 'kpi-value ' + (data.monthRate > 5 ? 'red' : data.monthRate > 3 ? 'yellow' : '');
+  document.getElementById('g-optout-month-sub').textContent = `${data.monthDnd} opt-outs de ${data.monthTotal} contactos este mes`;
+  document.getElementById('pb-optout-month').style.width = Math.min(100, data.monthRate * 10) + '%';
 }
 
 // ── Data layer ────────────────────────────────────────────────
