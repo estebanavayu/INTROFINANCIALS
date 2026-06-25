@@ -401,16 +401,12 @@
   <div class="section active" id="tab-global">
     <p class="section-title">Resumen global — Empresa</p>
 
-    <div class="kpi-grid">
-      <div class="kpi-card green">
-        <div class="kpi-label">Live Transfers</div>
-        <div class="kpi-value green" id="g-lts">—</div>
-        <div class="kpi-sub">desde 1 abr · acumulado</div>
-      </div>
+    <p class="section-title" style="margin-top:4px;margin-bottom:8px">Volumen</p>
+    <div class="kpi-grid" style="margin-bottom:8px">
       <div class="kpi-card">
-        <div class="kpi-label">Llamadas concretadas</div>
-        <div class="kpi-value" id="g-calls">—</div>
-        <div class="kpi-sub">&ge;30 seg · acumulado</div>
+        <div class="kpi-label">Mensajes blasteados</div>
+        <div class="kpi-value" id="g-blasted">—</div>
+        <div class="kpi-sub">acumulado</div>
       </div>
       <div class="kpi-card accent">
         <div class="kpi-label">Leads en secuencias</div>
@@ -418,33 +414,30 @@
         <div class="kpi-sub">activos ahora</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Mensajes blasteados</div>
-        <div class="kpi-value" id="g-blasted">—</div>
-        <div class="kpi-sub">acumulado</div>
+        <div class="kpi-label">Llamadas concretadas</div>
+        <div class="kpi-value" id="g-calls">—</div>
+        <div class="kpi-sub">&ge;30 seg · acumulado</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Tasa Call → LT</div>
-        <div class="kpi-value" id="g-call-lt">—%</div>
-        <div class="kpi-sub">llamadas → live transfers</div>
-        <div class="progress-bar"><div class="progress-bar-fill green" id="pb-call-lt" style="width:0%"></div></div>
+      <div class="kpi-card green">
+        <div class="kpi-label">Live Transfers</div>
+        <div class="kpi-value green" id="g-lts">—</div>
+        <div class="kpi-sub">desde 1 abr · acumulado</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Tasa SMS → Call</div>
-        <div class="kpi-value" id="g-sms-call">—%</div>
+    </div>
+
+    <p class="section-title" style="margin-bottom:8px">Tasas de conversión</p>
+    <div class="kpi-grid">
+      <div class="kpi-card" style="border-color:rgba(124,58,237,0.3)">
+        <div class="kpi-label" style="color:#a78bfa">Tasa SMS → Call</div>
+        <div class="kpi-value" style="color:#a78bfa" id="g-sms-call">—%</div>
         <div class="kpi-sub">mensajes → llamadas</div>
-        <div class="progress-bar"><div class="progress-bar-fill" id="pb-sms-call" style="width:0%"></div></div>
+        <div class="progress-bar"><div class="progress-bar-fill" style="background:#7c3aed" id="pb-sms-call" style="width:0%"></div></div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Opt-out rate</div>
-        <div class="kpi-value" id="g-optout-today">—%</div>
-        <div class="kpi-sub" id="g-optout-today-sub">de la base total</div>
-        <div class="progress-bar"><div class="progress-bar-fill yellow" id="pb-optout-today" style="width:0%"></div></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">DND estimados</div>
-        <div class="kpi-value" id="g-optout-month">—</div>
-        <div class="kpi-sub" id="g-optout-month-sub">contactos con DND activo</div>
-        <div class="progress-bar"><div class="progress-bar-fill yellow" id="pb-optout-month" style="width:0%"></div></div>
+      <div class="kpi-card" style="border-color:rgba(124,58,237,0.3)">
+        <div class="kpi-label" style="color:#a78bfa">Tasa Call → LT</div>
+        <div class="kpi-value" style="color:#a78bfa" id="g-call-lt">—%</div>
+        <div class="kpi-sub">llamadas → live transfers</div>
+        <div class="progress-bar"><div class="progress-bar-fill" style="background:#7c3aed" id="pb-call-lt" style="width:0%"></div></div>
       </div>
     </div>
   </div>
