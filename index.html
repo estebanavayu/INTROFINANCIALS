@@ -343,6 +343,10 @@
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
   }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
 
   /* ── Last updated ── */
   .last-updated {
@@ -375,6 +379,9 @@
     <span><span class="live-dot"></span> Live</span>
     <span id="clock">--:-- --</span>
     <span id="last-sync">Actualizando…</span>
+    <button id="btn-refresh" onclick="hardRefresh()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px">
+      <span id="refresh-icon">↻</span> Refresh
+    </button>
   </div>
 </header>
 
@@ -395,6 +402,16 @@
     <p class="section-title">Resumen global — Empresa</p>
 
     <div class="kpi-grid">
+      <div class="kpi-card green">
+        <div class="kpi-label">Live Transfers</div>
+        <div class="kpi-value green" id="g-lts">—</div>
+        <div class="kpi-sub">desde 1 abr · acumulado</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Llamadas concretadas</div>
+        <div class="kpi-value" id="g-calls">—</div>
+        <div class="kpi-sub">&ge;30 seg · acumulado</div>
+      </div>
       <div class="kpi-card accent">
         <div class="kpi-label">Leads en secuencias</div>
         <div class="kpi-value" id="g-leads">—</div>
@@ -406,26 +423,16 @@
         <div class="kpi-sub">acumulado</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Llamadas concretadas</div>
-        <div class="kpi-value" id="g-calls">—</div>
-        <div class="kpi-sub">&ge;30 seg · acumulado</div>
-      </div>
-      <div class="kpi-card green">
-        <div class="kpi-label">Live Transfers</div>
-        <div class="kpi-value green" id="g-lts">—</div>
-        <div class="kpi-sub">acumulado</div>
+        <div class="kpi-label">Tasa Call → LT</div>
+        <div class="kpi-value" id="g-call-lt">—%</div>
+        <div class="kpi-sub">llamadas → live transfers</div>
+        <div class="progress-bar"><div class="progress-bar-fill green" id="pb-call-lt" style="width:0%"></div></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Tasa SMS → Call</div>
         <div class="kpi-value" id="g-sms-call">—%</div>
         <div class="kpi-sub">mensajes → llamadas</div>
         <div class="progress-bar"><div class="progress-bar-fill" id="pb-sms-call" style="width:0%"></div></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Tasa Call → LT</div>
-        <div class="kpi-value" id="g-call-lt">—%</div>
-        <div class="kpi-sub">llamadas → live transfers</div>
-        <div class="progress-bar"><div class="progress-bar-fill green" id="pb-call-lt" style="width:0%"></div></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Opt-out hoy</div>
@@ -1063,9 +1070,22 @@ async function fetchData() {
   renderOptout();
 }
 
+// ── Hard refresh ─────────────────────────────────────────────
+async function hardRefresh() {
+  ltsCache = { value: null, at: 0 };
+  optoutCache = { value: null, at: 0, month: null };
+  const icon = document.getElementById('refresh-icon');
+  icon.style.display = 'inline-block';
+  icon.style.animation = 'spin 0.8s linear infinite';
+  document.getElementById('btn-refresh').disabled = true;
+  await fetchData();
+  icon.style.animation = '';
+  document.getElementById('btn-refresh').disabled = false;
+}
+
 // ── Init ─────────────────────────────────────────────────────
 fetchData();
-setInterval(renderOptout, 30 * 60 * 1000);
+setInterval(fetchData, 30 * 60 * 1000);
 </script>
 
 </body>

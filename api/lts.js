@@ -12,9 +12,11 @@ const ATTRIBUTION_START = new Date('2026-04-01T00:00:00.000Z').getTime();
 // Fetch all WON opps from a pipeline since April 1
 async function fetchWonOpps(pipelineId) {
   const opps = [];
-  let page = 1;
+  let startAfterId = null;
+
   while (true) {
-    const url = `${GHL_V1}/opportunities/search?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100&page=${page}`;
+    const base = `${GHL_V1}/opportunities/search?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100`;
+    const url  = startAfterId ? `${base}&startAfterId=${startAfterId}` : base;
     const data = await fetch(url, {
       headers: { Authorization: `Bearer ${GHL_TOKEN}` }
     }).then(r => r.json()).catch(() => ({ opportunities: [] }));
@@ -23,12 +25,16 @@ async function fetchWonOpps(pipelineId) {
     if (batch.length === 0) break;
 
     for (const opp of batch) {
-      const wonAt = new Date(opp.lastStatusChangeAt || opp.updatedAt).getTime();
-      if (wonAt >= ATTRIBUTION_START) opps.push(opp);
+      // v1 usa updatedAt; lastStatusChangeAt es campo v2
+      const wonAt = new Date(
+        opp.lastStatusChangeAt || opp.closedDate || opp.updatedAt || opp.dateAdded
+      ).getTime();
+      if (wonAt >= ATTRIBUTION_START) opps.push({ ...opp, _wonAt: wonAt });
     }
+
     if (batch.length < 100) break;
-    page++;
-    if (page > 50) break;
+    startAfterId = batch[batch.length - 1].id;
+    if (opps.length > 5000) break;
   }
   return opps;
 }
@@ -75,10 +81,7 @@ export default async function handler(req, res) {
       const map = {};
       for (const opp of opps) {
         const cid = opp.contactId;
-        const wonAt = new Date(opp.lastStatusChangeAt || opp.updatedAt).getTime();
-        if (!map[cid] || wonAt > new Date(map[cid].lastStatusChangeAt || map[cid].updatedAt).getTime()) {
-          map[cid] = opp;
-        }
+        if (!map[cid] || opp._wonAt > map[cid]._wonAt) map[cid] = opp;
       }
       return Object.values(map);
     }
