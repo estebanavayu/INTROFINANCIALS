@@ -356,6 +356,33 @@
     padding: 20px 0 10px;
   }
 
+  /* ── Sub-tabs ── */
+  .subtab-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+  .subtab {
+    padding: 7px 16px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .subtab:hover { color: var(--text); }
+  .subtab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .subsection { display: none; }
+  .subsection.active { display: block; }
+
   /* ── Opt-out pill ── */
   .opt-out-pill {
     display: inline-flex;
@@ -387,10 +414,8 @@
 
 <nav>
   <div class="tab active" data-tab="global">Global</div>
-  <div class="tab" data-tab="mca">Funnel MCA</div>
-  <div class="tab" data-tab="cc">Funnel CC</div>
-  <div class="tab" data-tab="reps-mca">Por Rep — MCA</div>
-  <div class="tab" data-tab="reps-cc">Por Rep — CC</div>
+  <div class="tab" data-tab="mca">MCA</div>
+  <div class="tab" data-tab="cc">Credit Card</div>
 </nav>
 
 <main>
@@ -444,311 +469,160 @@
 
 
   <!-- ══════════════════════════════════════
-       TAB: FUNNEL MCA
+       TAB: MCA (funnel + reps)
   ══════════════════════════════════════ -->
   <div class="section" id="tab-mca">
-    <p class="section-title">Funnel MCA — Camila, Maria y Sara</p>
+    <div class="subtab-bar">
+      <div class="subtab active" data-subtab="mca-funnel">Funnel</div>
+      <div class="subtab" data-subtab="mca-reps">Rep / MCA</div>
+    </div>
 
-    <div class="funnel-grid" style="grid-template-columns:1fr">
+    <!-- SUB: FUNNEL MCA -->
+    <div class="subsection active" id="subtab-mca-funnel">
       <div class="funnel-card">
-        <div class="funnel-card-header">
-          Funnel completo <span class="badge mca">MCA</span>
-        </div>
+        <div class="funnel-card-header">Funnel completo <span class="badge mca">MCA</span></div>
         <div class="funnel-rows">
-          <div class="funnel-row">
-            <span class="funnel-row-label">Leads en secuencia</span>
-            <span class="funnel-row-value" id="mca-leads">—</span>
-            <span class="funnel-row-pct"></span>
-          </div>
-          <div class="funnel-row">
-            <span class="funnel-row-label">Mensajes blasteados</span>
-            <span class="funnel-row-value" id="mca-blasted">—</span>
-            <span class="funnel-row-pct" style="color:var(--muted);font-size:10px">acumulado</span>
-          </div>
-          <div class="funnel-row">
-            <span class="funnel-row-label">Llamadas concretadas ≥30s</span>
-            <span class="funnel-row-value" id="mca-calls">—</span>
-            <span class="funnel-row-pct" id="mca-sms-call-pct">—%</span>
-          </div>
-          <div class="funnel-row">
-            <span class="funnel-row-label">LTs concretadas</span>
-            <span class="funnel-row-value" id="mca-lts">—</span>
-            <span class="funnel-row-pct" id="mca-call-lt-pct">—%</span>
-          </div>
-          <div class="funnel-row">
-            <span class="funnel-row-label">Not shows acumulado</span>
-            <span class="funnel-row-value" id="mca-noshows">—</span>
-            <span class="funnel-row-pct" id="mca-noshow-pct">—%</span>
-          </div>
+          <div class="funnel-row"><span class="funnel-row-label">Leads en secuencia</span><span class="funnel-row-value" id="mca-leads">—</span><span class="funnel-row-pct"></span></div>
+          <div class="funnel-row"><span class="funnel-row-label">Mensajes blasteados</span><span class="funnel-row-value" id="mca-blasted">—</span><span class="funnel-row-pct" style="color:var(--muted);font-size:10px">acumulado</span></div>
+          <div class="funnel-row"><span class="funnel-row-label">Llamadas concretadas ≥30s</span><span class="funnel-row-value" id="mca-calls">—</span><span class="funnel-row-pct" id="mca-sms-call-pct">—%</span></div>
+          <div class="funnel-row"><span class="funnel-row-label">LTs concretadas</span><span class="funnel-row-value" id="mca-lts">—</span><span class="funnel-row-pct" id="mca-call-lt-pct">—%</span></div>
+          <div class="funnel-row"><span class="funnel-row-label">Not shows acumulado</span><span class="funnel-row-value" id="mca-noshows">—</span><span class="funnel-row-pct" id="mca-noshow-pct">—%</span></div>
         </div>
         <div style="padding:12px 16px;background:var(--surface2);display:flex;gap:32px;border-top:1px solid var(--border)">
-          <div>
-            <div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa SMS → Call</div>
-            <div style="font-size:18px;font-weight:700" id="mca-rate-sms">—%</div>
-          </div>
-          <div>
-            <div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa Call → LT</div>
-            <div style="font-size:18px;font-weight:700;color:var(--green)" id="mca-rate-lt">—%</div>
-          </div>
+          <div><div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa SMS → Call</div><div style="font-size:18px;font-weight:700" id="mca-rate-sms">—%</div></div>
+          <div><div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa Call → LT</div><div style="font-size:18px;font-weight:700;color:var(--green)" id="mca-rate-lt">—%</div></div>
         </div>
       </div>
     </div>
-  </div>
 
-
-  <!-- ══════════════════════════════════════
-       TAB: FUNNEL CC
-  ══════════════════════════════════════ -->
-  <div class="section" id="tab-cc">
-    <p class="section-title">Funnel Credit Cards — Camila, Maria y Sara</p>
-
-    <div class="funnel-card">
-      <div class="funnel-card-header">
-        Funnel completo <span class="badge cc">CC</span>
-      </div>
-      <div class="funnel-rows">
-        <div class="funnel-row">
-          <span class="funnel-row-label">Leads en secuencia</span>
-          <span class="funnel-row-value" id="cc-leads">—</span>
-          <span class="funnel-row-pct"></span>
+    <!-- SUB: REPS MCA -->
+    <div class="subsection" id="subtab-mca-reps">
+      <div class="rep-section">
+        <div class="rep-section-header"><div class="rep-avatar">C</div><div><div class="rep-name">Camila</div><div style="font-size:11px;color:var(--muted)">Opener</div></div></div>
+        <div class="rep-metrics">
+          <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="cam-mca-lts">—</div></div>
+          <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="cam-mca-calls">—</div></div>
+          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="cam-mca-sms">—%</div></div>
+          <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="cam-mca-lt">—%</div></div>
         </div>
-        <div class="funnel-row">
-          <span class="funnel-row-label">Mensajes blasteados</span>
-          <span class="funnel-row-value" id="cc-blasted">—</span>
-          <span class="funnel-row-pct" style="color:var(--muted);font-size:10px">acumulado</span>
-        </div>
-        <div class="funnel-row">
-          <span class="funnel-row-label">Llamadas concretadas ≥30s</span>
-          <span class="funnel-row-value" id="cc-calls">—</span>
-          <span class="funnel-row-pct" id="cc-sms-call-pct">—%</span>
-        </div>
-        <div class="funnel-row">
-          <span class="funnel-row-label">LTs concretadas</span>
-          <span class="funnel-row-value" id="cc-lts">—</span>
-          <span class="funnel-row-pct" id="cc-call-lt-pct">—%</span>
-        </div>
-        <div class="funnel-row">
-          <span class="funnel-row-label">Not shows acumulado</span>
-          <span class="funnel-row-value" id="cc-noshows">—</span>
-          <span class="funnel-row-pct" id="cc-noshow-pct">—%</span>
-        </div>
-      </div>
-      <div style="padding:12px 16px;background:var(--surface2);display:flex;gap:32px;border-top:1px solid var(--border)">
-        <div>
-          <div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa SMS → Call</div>
-          <div style="font-size:18px;font-weight:700" id="cc-rate-sms">—%</div>
-        </div>
-        <div>
-          <div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa Call → LT</div>
-          <div style="font-size:18px;font-weight:700;color:#a78bfa" id="cc-rate-lt">—%</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- ══════════════════════════════════════
-       TAB: POR REP — MCA
-  ══════════════════════════════════════ -->
-  <div class="section" id="tab-reps-mca">
-    <p class="section-title">Por representante — MCA</p>
-
-    <!-- CAMILA MCA -->
-    <div class="rep-section">
-      <div class="rep-section-header">
-        <div class="rep-avatar">C</div>
-        <div>
-          <div class="rep-name">Camila</div>
-          <div style="font-size:11px;color:var(--muted)">Opener</div>
-        </div>
-      </div>
-      <div class="rep-metrics">
-        <div class="rep-metric">
-          <div class="label">Live Transfers</div>
-          <div class="value" id="cam-mca-lts">—</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Llamadas ≥30s</div>
-          <div class="value" id="cam-mca-calls">—</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Tasa SMS → Call</div>
-          <div class="value" id="cam-mca-sms">—%</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Tasa Call → LT</div>
-          <div class="value green" id="cam-mca-lt">—%</div>
-        </div>
-      </div>
-      <div class="call-breakdown">
-        <div class="call-breakdown-title">Tipo de llamada — Camila</div>
-        <div class="call-types">
+        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Camila</div><div class="call-types">
           <div class="call-type"><div class="ct-pct" id="cam-mca-callnow">—%</div><div class="ct-label">Call Now</div></div>
           <div class="call-type"><div class="ct-pct" id="cam-mca-sched">—%</div><div class="ct-label">Scheduled</div></div>
           <div class="call-type"><div class="ct-pct" id="cam-mca-cold">—%</div><div class="ct-label">Cold Call</div></div>
           <div class="call-type"><div class="ct-pct" id="cam-mca-inbound">—%</div><div class="ct-label">Inbound</div></div>
-        </div>
+        </div></div>
       </div>
-    </div>
-
-    <hr class="divider" />
-
-    <!-- MARIA MCA -->
-    <div class="rep-section">
-      <div class="rep-section-header">
-        <div class="rep-avatar" style="background:linear-gradient(135deg,#db2777,#9333ea)">M</div>
-        <div>
-          <div class="rep-name">Maria</div>
-          <div style="font-size:11px;color:var(--muted)">Opener</div>
+      <hr class="divider" />
+      <div class="rep-section">
+        <div class="rep-section-header"><div class="rep-avatar" style="background:linear-gradient(135deg,#db2777,#9333ea)">M</div><div><div class="rep-name">Maria</div><div style="font-size:11px;color:var(--muted)">Opener</div></div></div>
+        <div class="rep-metrics">
+          <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="mar-mca-lts">—</div></div>
+          <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="mar-mca-calls">—</div></div>
+          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="mar-mca-sms">—%</div></div>
+          <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="mar-mca-lt">—%</div></div>
         </div>
-      </div>
-      <div class="rep-metrics">
-        <div class="rep-metric">
-          <div class="label">Live Transfers</div>
-          <div class="value" id="mar-mca-lts">—</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Llamadas ≥30s</div>
-          <div class="value" id="mar-mca-calls">—</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Tasa SMS → Call</div>
-          <div class="value" id="mar-mca-sms">—%</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Tasa Call → LT</div>
-          <div class="value green" id="mar-mca-lt">—%</div>
-        </div>
-      </div>
-      <div class="call-breakdown">
-        <div class="call-breakdown-title">Tipo de llamada — Maria</div>
-        <div class="call-types">
+        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Maria</div><div class="call-types">
           <div class="call-type"><div class="ct-pct" id="mar-mca-callnow">—%</div><div class="ct-label">Call Now</div></div>
           <div class="call-type"><div class="ct-pct" id="mar-mca-sched">—%</div><div class="ct-label">Scheduled</div></div>
           <div class="call-type"><div class="ct-pct" id="mar-mca-cold">—%</div><div class="ct-label">Cold Call</div></div>
           <div class="call-type"><div class="ct-pct" id="mar-mca-inbound">—%</div><div class="ct-label">Inbound</div></div>
-        </div>
+        </div></div>
       </div>
-    </div>
-
-    <hr class="divider" />
-
-    <!-- SARA MCA -->
-    <div class="rep-section">
-      <div class="rep-section-header">
-        <div class="rep-avatar sara">S</div>
-        <div>
-          <div class="rep-name">Sara <span class="rep-tag ai">AI</span></div>
-          <div style="font-size:11px;color:var(--muted)">Opener AI</div>
+      <hr class="divider" />
+      <div class="rep-section">
+        <div class="rep-section-header"><div class="rep-avatar sara">S</div><div><div class="rep-name">Sara <span class="rep-tag ai">AI</span></div><div style="font-size:11px;color:var(--muted)">Opener AI</div></div></div>
+        <div class="rep-metrics">
+          <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="sar-mca-lts">—</div></div>
+          <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="sar-mca-calls">—</div></div>
+          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="sar-mca-sms">—%</div></div>
+          <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="sar-mca-lt">—%</div></div>
         </div>
-      </div>
-      <div class="rep-metrics">
-        <div class="rep-metric">
-          <div class="label">Live Transfers</div>
-          <div class="value" id="sar-mca-lts">—</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Llamadas ≥30s</div>
-          <div class="value" id="sar-mca-calls">—</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Tasa SMS → Call</div>
-          <div class="value" id="sar-mca-sms">—%</div>
-        </div>
-        <div class="rep-metric">
-          <div class="label">Tasa Call → LT</div>
-          <div class="value green" id="sar-mca-lt">—%</div>
-        </div>
-      </div>
-      <div class="call-breakdown">
-        <div class="call-breakdown-title">Tipo de llamada — Sara</div>
-        <div class="call-types">
+        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Sara</div><div class="call-types">
           <div class="call-type"><div class="ct-pct" id="sar-mca-callnow">—%</div><div class="ct-label">Call Now</div></div>
           <div class="call-type"><div class="ct-pct" id="sar-mca-sched">—%</div><div class="ct-label">Scheduled</div></div>
           <div class="call-type"><div class="ct-pct" id="sar-mca-cold">—%</div><div class="ct-label">Cold Call</div></div>
           <div class="call-type"><div class="ct-pct" id="sar-mca-inbound">—%</div><div class="ct-label">Inbound</div></div>
-        </div>
+        </div></div>
       </div>
     </div>
   </div>
 
 
   <!-- ══════════════════════════════════════
-       TAB: POR REP — CC
+       TAB: CC (funnel + reps)
   ══════════════════════════════════════ -->
-  <div class="section" id="tab-reps-cc">
-    <p class="section-title">Por representante — Credit Cards</p>
+  <div class="section" id="tab-cc">
+    <div class="subtab-bar">
+      <div class="subtab active" data-subtab="cc-funnel">Funnel</div>
+      <div class="subtab" data-subtab="cc-reps">Rep / CC</div>
+    </div>
 
-    <!-- CAMILA CC -->
-    <div class="rep-section">
-      <div class="rep-section-header">
-        <div class="rep-avatar">C</div>
-        <div><div class="rep-name">Camila</div><div style="font-size:11px;color:var(--muted)">Opener</div></div>
+    <!-- SUB: FUNNEL CC -->
+    <div class="subsection active" id="subtab-cc-funnel">
+      <div class="funnel-card">
+        <div class="funnel-card-header">Funnel completo <span class="badge cc">CC</span></div>
+        <div class="funnel-rows">
+          <div class="funnel-row"><span class="funnel-row-label">Leads en secuencia</span><span class="funnel-row-value" id="cc-leads">—</span><span class="funnel-row-pct"></span></div>
+          <div class="funnel-row"><span class="funnel-row-label">Mensajes blasteados</span><span class="funnel-row-value" id="cc-blasted">—</span><span class="funnel-row-pct" style="color:var(--muted);font-size:10px">acumulado</span></div>
+          <div class="funnel-row"><span class="funnel-row-label">Llamadas concretadas ≥30s</span><span class="funnel-row-value" id="cc-calls">—</span><span class="funnel-row-pct" id="cc-sms-call-pct">—%</span></div>
+          <div class="funnel-row"><span class="funnel-row-label">LTs concretadas</span><span class="funnel-row-value" id="cc-lts">—</span><span class="funnel-row-pct" id="cc-call-lt-pct">—%</span></div>
+          <div class="funnel-row"><span class="funnel-row-label">Not shows acumulado</span><span class="funnel-row-value" id="cc-noshows">—</span><span class="funnel-row-pct" id="cc-noshow-pct">—%</span></div>
+        </div>
+        <div style="padding:12px 16px;background:var(--surface2);display:flex;gap:32px;border-top:1px solid var(--border)">
+          <div><div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa SMS → Call</div><div style="font-size:18px;font-weight:700" id="cc-rate-sms">—%</div></div>
+          <div><div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa Call → LT</div><div style="font-size:18px;font-weight:700;color:#a78bfa" id="cc-rate-lt">—%</div></div>
+        </div>
       </div>
-      <div class="rep-metrics">
-        <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="cam-cc-lts">—</div></div>
-        <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="cam-cc-calls">—</div></div>
-        <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="cam-cc-sms">—%</div></div>
-        <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="cam-cc-lt">—%</div></div>
-      </div>
-      <div class="call-breakdown">
-        <div class="call-breakdown-title">Tipo de llamada — Camila CC</div>
-        <div class="call-types">
+    </div>
+
+    <!-- SUB: REPS CC -->
+    <div class="subsection" id="subtab-cc-reps">
+      <div class="rep-section">
+        <div class="rep-section-header"><div class="rep-avatar">C</div><div><div class="rep-name">Camila</div><div style="font-size:11px;color:var(--muted)">Opener</div></div></div>
+        <div class="rep-metrics">
+          <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="cam-cc-lts">—</div></div>
+          <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="cam-cc-calls">—</div></div>
+          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="cam-cc-sms">—%</div></div>
+          <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="cam-cc-lt">—%</div></div>
+        </div>
+        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Camila</div><div class="call-types">
           <div class="call-type"><div class="ct-pct" id="cam-cc-callnow">—%</div><div class="ct-label">Call Now</div></div>
           <div class="call-type"><div class="ct-pct" id="cam-cc-sched">—%</div><div class="ct-label">Scheduled</div></div>
           <div class="call-type"><div class="ct-pct" id="cam-cc-cold">—%</div><div class="ct-label">Cold Call</div></div>
           <div class="call-type"><div class="ct-pct" id="cam-cc-inbound">—%</div><div class="ct-label">Inbound</div></div>
+        </div></div>
+      </div>
+      <hr class="divider" />
+      <div class="rep-section">
+        <div class="rep-section-header"><div class="rep-avatar" style="background:linear-gradient(135deg,#db2777,#9333ea)">M</div><div><div class="rep-name">Maria</div><div style="font-size:11px;color:var(--muted)">Opener</div></div></div>
+        <div class="rep-metrics">
+          <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="mar-cc-lts">—</div></div>
+          <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="mar-cc-calls">—</div></div>
+          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="mar-cc-sms">—%</div></div>
+          <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="mar-cc-lt">—%</div></div>
         </div>
-      </div>
-    </div>
-
-    <hr class="divider" />
-
-    <!-- MARIA CC -->
-    <div class="rep-section">
-      <div class="rep-section-header">
-        <div class="rep-avatar" style="background:linear-gradient(135deg,#db2777,#9333ea)">M</div>
-        <div><div class="rep-name">Maria</div><div style="font-size:11px;color:var(--muted)">Opener</div></div>
-      </div>
-      <div class="rep-metrics">
-        <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="mar-cc-lts">—</div></div>
-        <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="mar-cc-calls">—</div></div>
-        <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="mar-cc-sms">—%</div></div>
-        <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="mar-cc-lt">—%</div></div>
-      </div>
-      <div class="call-breakdown">
-        <div class="call-breakdown-title">Tipo de llamada — Maria CC</div>
-        <div class="call-types">
+        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Maria</div><div class="call-types">
           <div class="call-type"><div class="ct-pct" id="mar-cc-callnow">—%</div><div class="ct-label">Call Now</div></div>
           <div class="call-type"><div class="ct-pct" id="mar-cc-sched">—%</div><div class="ct-label">Scheduled</div></div>
           <div class="call-type"><div class="ct-pct" id="mar-cc-cold">—%</div><div class="ct-label">Cold Call</div></div>
           <div class="call-type"><div class="ct-pct" id="mar-cc-inbound">—%</div><div class="ct-label">Inbound</div></div>
+        </div></div>
+      </div>
+      <hr class="divider" />
+      <div class="rep-section">
+        <div class="rep-section-header"><div class="rep-avatar sara">S</div><div><div class="rep-name">Sara <span class="rep-tag ai">AI</span></div><div style="font-size:11px;color:var(--muted)">Opener AI</div></div></div>
+        <div class="rep-metrics">
+          <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="sar-cc-lts">—</div></div>
+          <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="sar-cc-calls">—</div></div>
+          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="sar-cc-sms">—%</div></div>
+          <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="sar-cc-lt">—%</div></div>
         </div>
-      </div>
-    </div>
-
-    <hr class="divider" />
-
-    <!-- SARA CC -->
-    <div class="rep-section">
-      <div class="rep-section-header">
-        <div class="rep-avatar sara">S</div>
-        <div><div class="rep-name">Sara <span class="rep-tag ai">AI</span></div><div style="font-size:11px;color:var(--muted)">Opener AI</div></div>
-      </div>
-      <div class="rep-metrics">
-        <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="sar-cc-lts">—</div></div>
-        <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="sar-cc-calls">—</div></div>
-        <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="sar-cc-sms">—%</div></div>
-        <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="sar-cc-lt">—%</div></div>
-      </div>
-      <div class="call-breakdown">
-        <div class="call-breakdown-title">Tipo de llamada — Sara CC</div>
-        <div class="call-types">
+        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Sara</div><div class="call-types">
           <div class="call-type"><div class="ct-pct" id="sar-cc-callnow">—%</div><div class="ct-label">Call Now</div></div>
           <div class="call-type"><div class="ct-pct" id="sar-cc-sched">—%</div><div class="ct-label">Scheduled</div></div>
           <div class="call-type"><div class="ct-pct" id="sar-cc-cold">—%</div><div class="ct-label">Cold Call</div></div>
           <div class="call-type"><div class="ct-pct" id="sar-cc-inbound">—%</div><div class="ct-label">Inbound</div></div>
-        </div>
+        </div></div>
       </div>
     </div>
   </div>
@@ -765,6 +639,17 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Sub-tab navigation ───────────────────────────────────────
+document.querySelectorAll('.subtab').forEach(st => {
+  st.addEventListener('click', () => {
+    const parent = st.closest('.section');
+    parent.querySelectorAll('.subtab').forEach(s => s.classList.remove('active'));
+    parent.querySelectorAll('.subsection').forEach(s => s.classList.remove('active'));
+    st.classList.add('active');
+    document.getElementById('subtab-' + st.dataset.subtab).classList.add('active');
   });
 });
 
