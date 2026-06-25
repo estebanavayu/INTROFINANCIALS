@@ -1,6 +1,21 @@
-const GHL_TOKEN = process.env.GHL_TOKEN;
-const GHL_LOC   = 'NXZFG9aQz6r1UXzZoedy';
-const GHL_V1    = 'https://rest.gohighlevel.com/v1';
+const GHL_TOKEN  = process.env.GHL_TOKEN;
+const GHL_LOC    = 'NXZFG9aQz6r1UXzZoedy';
+const GHL_V1     = 'https://rest.gohighlevel.com/v1';
+const BACKEND    = 'https://backend.leadconnectorhq.com';
+
+// Llama al endpoint de insights de GHL (backend.leadconnectorhq.com)
+async function fetchInsights(startDate, endDate) {
+  const url = `${BACKEND}/phone-system/messaging/messages/insights?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}`;
+  const res = await fetch(url, {
+    headers: {
+      'token-id':     GHL_TOKEN,
+      'Authorization': `Bearer ${GHL_TOKEN}`,
+      'Accept':        'application/json',
+    }
+  });
+  if (!res.ok) return null;
+  return res.json().catch(() => null);
+}
 
 // Trae una pagina de contactos ordenados por dateUpdated desc (los mas recientes primero)
 async function fetchContactsPage(startAfterId) {
@@ -93,24 +108,49 @@ export default async function handler(req, res) {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const todayEnd   = now.getTime();
 
-    // correr en paralelo: sampling general + conteo hoy + conteo mes
-    const [overall, todayData, monthData] = await Promise.all([
+    const todayISO = new Date(todayStart).toISOString();
+    const todayEndISO = new Date(todayEnd).toISOString();
+    const monthStartISO = new Date(selectedMonthStart).toISOString();
+    const monthEndISO   = new Date(selectedMonthEnd).toISOString();
+
+    // intentar insights endpoint primero
+    const [insightsToday, insightsMonth, overall] = await Promise.all([
+      fetchInsights(todayISO, todayEndISO),
+      fetchInsights(monthStartISO, monthEndISO),
       sampleOverallRate(),
-      countRecentOptouts(todayStart, todayEnd),
-      countRecentOptouts(selectedMonthStart, selectedMonthEnd),
     ]);
 
+    // insights devuelve { optOutRate, received, sent, delivered, failed, ... }
+    let todayDnd, todayTotal, todayRate, monthDnd, monthTotal, monthRate;
+
+    if (insightsToday && insightsToday.optOutRate !== undefined) {
+      todayRate  = +(insightsToday.optOutRate * 100).toFixed(2);
+      todayTotal = insightsToday.received || 0;
+      todayDnd   = Math.round(todayRate / 100 * todayTotal);
+    } else {
+      const td   = await countRecentOptouts(todayStart, todayEnd);
+      todayDnd   = td.dnd; todayTotal = td.total;
+      todayRate  = todayTotal > 0 ? +((todayDnd / todayTotal) * 100).toFixed(2) : 0;
+    }
+
+    if (insightsMonth && insightsMonth.optOutRate !== undefined) {
+      monthRate  = +(insightsMonth.optOutRate * 100).toFixed(2);
+      monthTotal = insightsMonth.received || 0;
+      monthDnd   = Math.round(monthRate / 100 * monthTotal);
+    } else {
+      const md   = await countRecentOptouts(selectedMonthStart, selectedMonthEnd);
+      monthDnd   = md.dnd; monthTotal = md.total;
+      monthRate  = monthTotal > 0 ? +((monthDnd / monthTotal) * 100).toFixed(2) : 0;
+    }
+
     res.json({
-      rate:         overall.rate,
-      dndEstimated: overall.dndEstimated,
-      total:        overall.total,
-      sampled:      overall.sampled,
-      todayDnd:     todayData.dnd,
-      todayTotal:   todayData.total,
-      todayRate:    todayData.total > 0 ? +((todayData.dnd / todayData.total) * 100).toFixed(2) : 0,
-      monthDnd:     monthData.dnd,
-      monthTotal:   monthData.total,
-      monthRate:    monthData.total > 0 ? +((monthData.dnd / monthData.total) * 100).toFixed(2) : 0,
+      rate:          overall.rate,
+      dndEstimated:  overall.dndEstimated,
+      total:         overall.total,
+      sampled:       overall.sampled,
+      source:        insightsToday ? 'insights' : 'contacts',
+      todayDnd, todayTotal, todayRate,
+      monthDnd, monthTotal, monthRate,
       selectedMonth: monthParam || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
     });
   } catch (e) {
