@@ -66,6 +66,14 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  // debug: ver respuesta cruda de una pipeline
+  if (req.query?.debug) {
+    const pid = req.query.debug;
+    const url = `${GHL_V1}/opportunities/search?locationId=${GHL_LOC}&pipelineId=${pid}&status=won&limit=5`;
+    const raw = await fetch(url, { headers: { Authorization: `Bearer ${GHL_TOKEN}` } }).then(r => r.json()).catch(e => ({ error: e.message }));
+    return res.json({ url, raw });
+  }
+
   try {
     const [userMap, ...pipelineResults] = await Promise.all([
       fetchUsers(),
