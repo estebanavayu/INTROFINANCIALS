@@ -1,6 +1,7 @@
 const GHL_TOKEN = process.env.GHL_TOKEN;
 const GHL_LOC   = 'NXZFG9aQz6r1UXzZoedy';
-const GHL_V1    = 'https://rest.gohighlevel.com/v1';
+const GHL_V2    = 'https://services.leadconnectorhq.com';
+const GHL_HDRS  = { Authorization: `Bearer ${GHL_TOKEN}`, Version: '2021-07-28' };
 
 const PIPELINES = {
   mca:  ['85kFh5EWKPg7qg9FDJfg', 'tzoH6Bv4qfC4Rug8yZvQ'],
@@ -15,10 +16,10 @@ async function fetchWonOpps(pipelineId) {
   let startAfterId = null;
 
   while (true) {
-    const base = `${GHL_V1}/opportunities/search?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100`;
+    const base = `${GHL_V2}/opportunities/search?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100`;
     const url  = startAfterId ? `${base}&startAfterId=${startAfterId}` : base;
     const data = await fetch(url, {
-      headers: { Authorization: `Bearer ${GHL_TOKEN}` }
+      headers: GHL_HDRS
     }).then(r => r.json()).catch(() => ({ opportunities: [] }));
 
     const batch = data.opportunities || [];
@@ -42,8 +43,8 @@ async function fetchWonOpps(pipelineId) {
 // Fetch GHL users to map id → name
 async function fetchUsers() {
   const data = await fetch(
-    `${GHL_V1}/users/?locationId=${GHL_LOC}`,
-    { headers: { Authorization: `Bearer ${GHL_TOKEN}` } }
+    `${GHL_V2}/users/?locationId=${GHL_LOC}`,
+    { headers: GHL_HDRS }
   ).then(r => r.json()).catch(() => ({ users: [] }));
   const map = {};
   for (const u of (data.users || [])) {
@@ -69,8 +70,8 @@ export default async function handler(req, res) {
   // debug: ver respuesta cruda de una pipeline
   if (req.query?.debug) {
     const pid = req.query.debug;
-    const url = `${GHL_V1}/opportunities/search?locationId=${GHL_LOC}&pipelineId=${pid}&status=won&limit=5`;
-    const raw = await fetch(url, { headers: { Authorization: `Bearer ${GHL_TOKEN}` } }).then(r => r.json()).catch(e => ({ error: e.message }));
+    const url = `${GHL_V2}/opportunities/search?location_id=${GHL_LOC}&pipeline_id=${pid}&status=won&limit=5`;
+    const raw = await fetch(url, { headers: GHL_HDRS }).then(r => r.json()).catch(e => ({ error: e.message }));
     return res.json({ url, raw });
   }
 
