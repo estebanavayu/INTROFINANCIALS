@@ -434,7 +434,12 @@
         <div class="progress-bar"><div class="progress-bar-fill yellow" id="pb-optout-today" style="width:0%"></div></div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Opt-out mes</div>
+        <div class="kpi-label" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Opt-out mes</span>
+          <input type="month" id="month-picker"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:1px 4px;font-size:10px;cursor:pointer"
+          />
+        </div>
         <div class="kpi-value" id="g-optout-month">—%</div>
         <div class="kpi-sub" id="g-optout-month-sub">— contactos este mes</div>
         <div class="progress-bar"><div class="progress-bar-fill yellow" id="pb-optout-month" style="width:0%"></div></div>
@@ -939,19 +944,28 @@ function render(data) {
     'Ultima actualización: ' + new Date().toLocaleString('es-CL');
 }
 
-// cache local para opt-out (se recalcula cada 30 min)
-let optoutCache = { value: null, at: 0 };
+// cache local para opt-out
+let optoutCache = { value: null, at: 0, month: null };
+
+// inicializar picker con mes actual
+const now = new Date();
+const currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+document.getElementById('month-picker').value = currentMonth;
+document.getElementById('month-picker').addEventListener('change', () => {
+  optoutCache = { value: null, at: 0, month: null };
+  renderOptout();
+});
 
 // ── Opt-out rate via API endpoint ─────────────────────────────
 async function fetchOptoutRate() {
-  const now = Date.now();
-  if (optoutCache.value !== null && now - optoutCache.at < 30 * 60 * 1000) {
+  const month = document.getElementById('month-picker').value;
+  const cacheAge = Date.now() - optoutCache.at;
+  if (optoutCache.value !== null && cacheAge < 30 * 60 * 1000 && optoutCache.month === month) {
     return optoutCache.value;
   }
-  document.getElementById('g-optout-acc').textContent = '…';
   try {
-    const data = await fetch('/api/optout').then(r => r.json());
-    optoutCache = { value: data, at: now };
+    const data = await fetch(`/api/optout?month=${month}`).then(r => r.json());
+    optoutCache = { value: data, at: Date.now(), month };
     return data;
   } catch (e) {
     console.error('opt-out fetch error:', e);
