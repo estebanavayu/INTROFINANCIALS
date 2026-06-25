@@ -887,11 +887,8 @@ function render(data) {
   document.getElementById('g-lts').textContent      = fmt(g.lts);
   document.getElementById('g-sms-call').textContent = pct(g.calls, g.blasted);
   document.getElementById('g-call-lt').textContent  = pct(g.lts, g.calls);
-  document.getElementById('g-optout-acc').textContent = g.optoutAcc != null ? g.optoutAcc.toFixed(2) + '%' : '—%';
-  document.getElementById('g-optout-cur').textContent = 'actual: ' + (g.optoutCur != null ? g.optoutCur.toFixed(2) + '%' : '—%');
   document.getElementById('pb-sms-call').style.width = pctNum(g.calls, g.blasted) + '%';
   document.getElementById('pb-call-lt').style.width  = pctNum(g.lts, g.calls) + '%';
-  document.getElementById('pb-optout').style.width   = Math.min(100, (g.optoutAcc || 0) * 10) + '%';
 
   // --- Funnel MCA ---
   document.getElementById('mca-leads').textContent       = fmt(mca.leadsInSequence);
