@@ -986,18 +986,19 @@ async function renderOptout() {
   const subEl  = document.getElementById('g-optout-cur');
   const pbEl   = document.getElementById('pb-optout');
 
-  // hoy
+  // hoy — tasa de nuevos contactos de hoy que optaron out
   const todayEl = document.getElementById('g-optout-today');
   todayEl.textContent = data.todayRate.toFixed(2) + '%';
   todayEl.className = 'kpi-value ' + (data.todayRate > 5 ? 'red' : data.todayRate > 3 ? 'yellow' : '');
-  document.getElementById('g-optout-today-sub').textContent = `${data.todayDnd} opt-outs de ${data.todayTotal} contactos hoy`;
+  document.getElementById('g-optout-today-sub').textContent = `${data.todayDnd} nuevos opt-outs hoy`;
   document.getElementById('pb-optout-today').style.width = Math.min(100, data.todayRate * 10) + '%';
 
-  // mes
+  // mes — acumulado de opt-outs en el mes seleccionado
   const monthEl = document.getElementById('g-optout-month');
-  monthEl.textContent = data.monthRate.toFixed(2) + '%';
-  monthEl.className = 'kpi-value ' + (data.monthRate > 5 ? 'red' : data.monthRate > 3 ? 'yellow' : '');
-  document.getElementById('g-optout-month-sub').textContent = `${data.monthDnd} opt-outs de ${data.monthTotal} contactos este mes`;
+  monthEl.textContent = data.monthDnd.toLocaleString('es-CL');
+  monthEl.className = 'kpi-value';
+  const monthName = new Date(data.selectedMonth + '-02').toLocaleString('es-CL', { month: 'long', year: 'numeric' });
+  document.getElementById('g-optout-month-sub').textContent = `opt-outs acumulados en ${monthName} · ${data.monthRate.toFixed(2)}% tasa`;
   document.getElementById('pb-optout-month').style.width = Math.min(100, data.monthRate * 10) + '%';
 }
 
