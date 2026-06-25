@@ -962,12 +962,12 @@ async function renderOptout() {
   const subEl  = document.getElementById('g-optout-cur');
   const pbEl   = document.getElementById('pb-optout');
 
-  el.textContent  = data.acc.toFixed(2) + '%';
+  el.textContent  = data.rate.toFixed(2) + '%';
   subEl.textContent = `~${data.dndEstimated.toLocaleString('es-CL')} de ${data.total.toLocaleString('es-CL')} contactos`;
-  pbEl.style.width = Math.min(100, data.acc * 10) + '%';
+  pbEl.style.width = Math.min(100, data.rate * 10) + '%';
 
   // color dinámico según umbral
-  el.className = 'kpi-value ' + (data.acc > 5 ? 'red' : data.acc > 3 ? 'yellow' : '');
+  el.className = 'kpi-value ' + (data.rate > 5 ? 'red' : data.rate > 3 ? 'yellow' : '');
 }
 
 // ── Data layer ────────────────────────────────────────────────
