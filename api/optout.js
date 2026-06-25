@@ -1,16 +1,18 @@
-const GHL_TOKEN  = process.env.GHL_TOKEN;
-const GHL_LOC    = 'NXZFG9aQz6r1UXzZoedy';
-const GHL_V1     = 'https://rest.gohighlevel.com/v1';
-const BACKEND    = 'https://backend.leadconnectorhq.com';
+const GHL_TOKEN   = process.env.GHL_TOKEN;
+const GHL_TOKEN_V2 = process.env.GHL_TOKEN_V2 || process.env.GHL_TOKEN;
+const GHL_LOC     = 'NXZFG9aQz6r1UXzZoedy';
+const GHL_V1      = 'https://rest.gohighlevel.com/v1';
+const BACKEND     = 'https://backend.leadconnectorhq.com';
 
 // Llama al endpoint de insights de GHL (backend.leadconnectorhq.com)
 async function fetchInsights(startDate, endDate) {
   const url = `${BACKEND}/phone-system/messaging/messages/insights?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}`;
   const res = await fetch(url, {
     headers: {
-      'token-id':     GHL_TOKEN,
-      'Authorization': `Bearer ${GHL_TOKEN}`,
+      'token-id':      GHL_TOKEN_V2,
+      'Authorization': `Bearer ${GHL_TOKEN_V2}`,
       'Accept':        'application/json',
+      'Version':       '2021-07-28',
     }
   });
   if (!res.ok) return null;
