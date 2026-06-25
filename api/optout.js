@@ -2,33 +2,45 @@ const GHL_TOKEN = process.env.GHL_TOKEN;
 const GHL_LOC   = 'NXZFG9aQz6r1UXzZoedy';
 const GHL_V1    = 'https://rest.gohighlevel.com/v1';
 
-async function countDndInPeriod(since, until) {
-  let dnd = 0, total = 0, page = 0;
-  while (true) {
-    const url = `${GHL_V1}/contacts/?locationId=${GHL_LOC}&limit=100&startAfterDate=${since}${page > 0 ? `&startAfter=${page * 100}` : ''}`;
-    const data = await fetch(url, {
-      headers: { Authorization: `Bearer ${GHL_TOKEN}` }
-    }).then(r => r.json()).catch(() => ({ contacts: [] }));
+// Trae una pagina de contactos ordenados por dateUpdated desc (los mas recientes primero)
+async function fetchContactsPage(startAfterId) {
+  const base = `${GHL_V1}/contacts/?locationId=${GHL_LOC}&limit=100&sortBy=dateUpdated&sortOrder=desc`;
+  const url  = startAfterId ? `${base}&startAfterId=${startAfterId}` : base;
+  return fetch(url, {
+    headers: { Authorization: `Bearer ${GHL_TOKEN}` }
+  }).then(r => r.json()).catch(() => ({ contacts: [] }));
+}
 
+// Cuenta DND en contactos cuyo dateUpdated esta dentro del rango [since, until]
+// Pagina hasta que los contactos sean mas viejos que `since`
+async function countRecentOptouts(since, until) {
+  let dnd = 0, total = 0, startAfterId = null, pages = 0;
+
+  while (pages < 200) {
+    const data = await fetchContactsPage(startAfterId);
     const contacts = data.contacts || [];
     if (contacts.length === 0) break;
 
-    // si hay until, filtrar contactos dentro del rango
-    const inRange = until
-      ? contacts.filter(c => new Date(c.dateUpdated).getTime() <= until)
-      : contacts;
+    for (const c of contacts) {
+      const updated = new Date(c.dateUpdated || c.dateAdded || 0).getTime();
 
-    dnd   += inRange.filter(c => c.dnd).length;
-    total += inRange.length;
+      // ya pasamos el rango — parar
+      if (updated < since) return { dnd, total };
+
+      if (!until || updated <= until) {
+        total++;
+        if (c.dnd) dnd++;
+      }
+    }
+
     if (contacts.length < 100) break;
-    // si todos los contactos son posteriores al until, parar
-    if (until && contacts.every(c => new Date(c.dateUpdated).getTime() > until)) break;
-    page++;
-    if (page > 100) break;
+    startAfterId = contacts[contacts.length - 1].id;
+    pages++;
   }
   return { dnd, total };
 }
 
+// Muestra total de contactos DND (sampling)
 async function sampleOverallRate() {
   const PAGE_SIZE = 100, PAGES = 15;
   const first = await fetch(
@@ -36,9 +48,9 @@ async function sampleOverallRate() {
     { headers: { Authorization: `Bearer ${GHL_TOKEN}` } }
   ).then(r => r.json());
 
-  const total = first.meta?.total || 135810;
-  let dndCount = (first.contacts || []).filter(c => c.dnd).length;
-  let sampled  = (first.contacts || []).length;
+  const total    = first.meta?.total || 135810;
+  let dndCount   = (first.contacts || []).filter(c => c.dnd).length;
+  let sampled    = (first.contacts || []).length;
 
   const pages = await Promise.all(
     Array.from({ length: PAGES - 1 }, (_, i) =>
@@ -54,7 +66,7 @@ async function sampleOverallRate() {
     sampled  += c.length;
   }
   return {
-    rate: sampled > 0 ? +((dndCount / sampled) * 100).toFixed(2) : 0,
+    rate:         sampled > 0 ? +((dndCount / sampled) * 100).toFixed(2) : 0,
     total, sampled,
     dndEstimated: Math.round((dndCount / sampled) * total)
   };
@@ -67,24 +79,25 @@ export default async function handler(req, res) {
   try {
     const now = new Date();
 
-    // soporte para ?month=YYYY-MM (selector de mes)
-    const monthParam = req.query?.month; // e.g. "2026-06"
+    const monthParam = req.query?.month;
     let selectedMonthStart, selectedMonthEnd;
     if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       const [y, m] = monthParam.split('-').map(Number);
       selectedMonthStart = new Date(y, m - 1, 1).getTime();
-      selectedMonthEnd   = new Date(y, m, 1).getTime() - 1;
+      selectedMonthEnd   = new Date(y, m, 0, 23, 59, 59, 999).getTime();
     } else {
       selectedMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-      selectedMonthEnd   = null;
+      selectedMonthEnd   = now.getTime();
     }
 
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayEnd   = now.getTime();
 
+    // correr en paralelo: sampling general + conteo hoy + conteo mes
     const [overall, todayData, monthData] = await Promise.all([
       sampleOverallRate(),
-      countDndInPeriod(todayStart, null),
-      countDndInPeriod(selectedMonthStart, selectedMonthEnd),
+      countRecentOptouts(todayStart, todayEnd),
+      countRecentOptouts(selectedMonthStart, selectedMonthEnd),
     ]);
 
     res.json({
