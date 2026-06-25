@@ -999,19 +999,67 @@ function nullRep() {
   return { lts: null, calls: null, blasted: null, callNow: null, scheduled: null, coldCall: null, inbound: null };
 }
 
+// cache LTs 5 min
+let ltsCache = { value: null, at: 0 };
+
+function findRepLts(byRep, firstName) {
+  const key = Object.keys(byRep).find(n => n.toLowerCase().includes(firstName.toLowerCase()));
+  return key ? byRep[key] : 0;
+}
+
+async function fetchLts() {
+  const age = Date.now() - ltsCache.at;
+  if (ltsCache.value !== null && age < 5 * 60 * 1000) return ltsCache.value;
+  try {
+    const data = await fetch('/api/lts').then(r => r.json());
+    ltsCache = { value: data, at: Date.now() };
+    return data;
+  } catch (e) {
+    console.error('lts fetch error:', e);
+    return null;
+  }
+}
+
 async function fetchData() {
-  const MOCK = {
-    global: { leadsInSequence: null, blasted: null, calls: null, lts: null, optoutAcc: null, optoutCur: null },
-    mca: { leadsInSequence: null, blasted: null, calls: null, lts: null, noshows: null },
-    cc:  { leadsInSequence: null, blasted: null, calls: null, lts: null, noshows: null },
+  const lts = await fetchLts();
+
+  const mcaLts   = lts ? lts.mca.total : null;
+  const ccLts    = lts ? lts.cc.total  : null;
+  const totalLts = lts ? lts.total     : null;
+
+  function repMca(name) {
+    const r = nullRep();
+    r.lts = lts ? findRepLts(lts.mca.byRep, name) : null;
+    return r;
+  }
+  function repCc(name) {
+    const r = nullRep();
+    r.lts = lts ? findRepLts(lts.cc.byRep, name) : null;
+    return r;
+  }
+  function repTotMca() {
+    const r = nullRep();
+    r.lts = mcaLts;
+    return r;
+  }
+  function repTotCc() {
+    const r = nullRep();
+    r.lts = ccLts;
+    return r;
+  }
+
+  const data = {
+    global: { leadsInSequence: null, blasted: null, calls: null, lts: totalLts, optoutAcc: null, optoutCur: null },
+    mca: { leadsInSequence: null, blasted: null, calls: null, lts: mcaLts, noshows: null },
+    cc:  { leadsInSequence: null, blasted: null, calls: null, lts: ccLts,  noshows: null },
     reps: {
-      total:  { mca: nullRep(), cc: nullRep() },
-      camila: { mca: nullRep(), cc: nullRep() },
-      maria:  { mca: nullRep(), cc: nullRep() },
-      sara:   { mca: nullRep(), cc: nullRep() },
+      total:  { mca: repTotMca(), cc: repTotCc() },
+      camila: { mca: repMca('Camila'), cc: repCc('Camila') },
+      maria:  { mca: repMca('Maria'),  cc: repCc('Maria')  },
+      sara:   { mca: repMca('Sara'),   cc: repCc('Sara')   },
     }
   };
-  render(MOCK);
+  render(data);
   renderOptout();
 }
 
