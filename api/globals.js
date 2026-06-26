@@ -17,13 +17,13 @@ function hdrs() {
   };
 }
 
-// Lee solo meta.total — 1 request por pipeline
-async function fetchLtTotal(pipelineId) {
-  const url = `${GHL_V2}/opportunities/search`
+async function fetchLtTotal(pipelineId, startDate) {
+  let url = `${GHL_V2}/opportunities/search`
     + `?location_id=${GHL_LOC}`
     + `&pipeline_id=${pipelineId}`
     + `&status=won`
     + `&limit=1`;
+  if (startDate) url += `&startDate=${startDate}`;
   const res  = await fetch(url, { headers: hdrs() });
   const data = await res.json().catch(() => ({}));
   return data.meta?.total ?? 0;
@@ -47,16 +47,26 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const [ltGeneral, ltRise, ltNcn, seqData] = await Promise.all([
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+
+    const [ltGeneral, ltRise, ltNcn,
+           ltGeneralM, ltRiseM, ltNcnM,
+           seqData] = await Promise.all([
       fetchLtTotal(OPENING_PIPELINES[0]),
       fetchLtTotal(OPENING_PIPELINES[1]),
       fetchLtTotal(OPENING_PIPELINES[2]),
+      fetchLtTotal(OPENING_PIPELINES[0], monthStart),
+      fetchLtTotal(OPENING_PIPELINES[1], monthStart),
+      fetchLtTotal(OPENING_PIPELINES[2], monthStart),
       fetchLeadsInSequences(),
     ]);
 
     res.json({
       since:      SINCE,
       lts:        ltGeneral + ltRise + ltNcn,
+      ltsMonth:   ltGeneralM + ltRiseM + ltNcnM,
+      monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
     });
   } catch(e) {
