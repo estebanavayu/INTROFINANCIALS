@@ -2,11 +2,10 @@ const GHL_LOC = 'NXZFG9aQz6r1UXzZoedy';
 const GHL_V2  = 'https://services.leadconnectorhq.com';
 const SINCE   = '2026-02-01';
 
-// Pipelines y stages "Lead Ganado +60s"
 const PIPELINES = [
-  { id: '85kFh5EWKPg7qg9FDJfg', callStage: 'b49467aa-ee9f-462c-ade5-775d9bbf4ac2' }, // RISE
-  { id: 'tzoH6Bv4qfC4Rug8yZvQ', callStage: 'f5ecb2a9-050d-4f75-a007-e25ab2c12c30' }, // NCN
-  { id: '8tbkIiJnJCnPZY6X0mA6', callStage: 'fb6853c0-f7b8-4b68-ad9d-c43e339ea9a5' }, // CENTURY
+  { id: '85kFh5EWKPg7qg9FDJfg' }, // RISE OPENING
+  { id: 'tzoH6Bv4qfC4Rug8yZvQ' }, // NCN OPENING
+  { id: '8tbkIiJnJCnPZY6X0mA6' }, // CENTURY OPENING (CC)
 ];
 
 function hdrs() {
@@ -48,16 +47,6 @@ async function fetchContactDates(contactIds) {
   return map;
 }
 
-async function fetchLeadsInSequences() {
-  // Contactos activos en los 3 workflows — proxy via tags de trigger
-  const tags = ['handoff james', 'sent from partner', 'tt-cc'];
-  const counts = await Promise.all(tags.map(tag => {
-    const body = JSON.stringify({ locationId: GHL_LOC, filters: [{ field: 'tags', operator: 'contains', value: tag }], page: 1, pageLimit: 1 });
-    return fetch(`${GHL_V2}/contacts/search`, { method: 'POST', headers: hdrs(), body })
-      .then(r => r.json()).then(d => d.total ?? d.meta?.total ?? 0).catch(() => 0);
-  }));
-  return counts.reduce((a, b) => a + b, 0);
-}
 
 async function fetchSmsTotal(startDate, endDate) {
   const url = `${GHL_V2}/conversations/messages/export?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
@@ -89,46 +78,32 @@ export default async function handler(req, res) {
     const todayStr      = now.toISOString().slice(0, 10);
 
     // Todo en paralelo
-    const [
-      ...allResults
-    ] = await Promise.all([
-      ...PIPELINES.map(p => fetchAllOpps(p.id, { status: 'won' })),
-      ...PIPELINES.map(p => fetchAllOpps(p.id, { pipeline_stage_id: p.callStage })),
-      fetchLeadsInSequences(),
+    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal] = await Promise.all([
+      fetchAllOpps(PIPELINES[0].id, { status: 'won' }),
+      fetchAllOpps(PIPELINES[1].id, { status: 'won' }),
+      fetchAllOpps(PIPELINES[2].id, { status: 'won' }),
       fetchSmsTotal(monthStartStr, todayStr),
       fetchSmsTotal(SINCE, todayStr),
     ]);
-    const wonResults  = allResults.slice(0, 3);
-    const callResults = allResults.slice(3, 6);
-    const [seqData, smsMonth, smsTotal] = allResults.slice(6);
 
-    // Dedup contactIds
-    const wonMap  = dedupByContact(wonResults.flat());
-    const callMap = dedupByContact(callResults.flat());
-    const allIds  = [...new Set([...wonMap.keys(), ...callMap.keys()])];
+    // Dedup contactIds por wonAt más reciente
+    const wonMap = dedupByContact([...wonRise, ...wonNcn, ...wonCentury]);
 
     // Batch lookup fechas de contacto
-    const contactDates = await fetchContactDates(allIds);
+    const contactDates = await fetchContactDates([...wonMap.keys()]);
 
-    // Contar LTs (won) y Llamadas (call stage) por contact.dateAdded
-    let ltsTotal = 0, ltsMonth = 0, callsTotal = 0, callsMonth = 0;
+    // Contar LTs por contact.dateAdded
+    let ltsTotal = 0, ltsMonth = 0;
     for (const id of wonMap.keys()) {
       const t = contactDates.get(id) ?? 0;
       if (t >= sinceMs)      ltsTotal++;
       if (t >= monthStartMs) ltsMonth++;
     }
-    for (const id of callMap.keys()) {
-      const t = contactDates.get(id) ?? 0;
-      if (t >= sinceMs)      callsTotal++;
-      if (t >= monthStartMs) callsMonth++;
-    }
 
     res.json({
       since: SINCE,
       lts: ltsTotal, ltsMonth,
-      calls: callsTotal, callsMonth,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
-      leadsInSeq: seqData,
       smsMonth, smsTotal,
     });
   } catch(e) {

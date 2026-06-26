@@ -443,8 +443,8 @@
           </tr>
           <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
             <td style="padding:10px 12px;color:var(--text)">Llamadas concretadas</td>
-            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px" id="g-calls">—</td>
-            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px" id="g-calls-month">—</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px" id="g-calls">0</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px" id="g-calls-month">0</td>
           </tr>
           <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
             <td style="padding:10px 12px;color:var(--text)">Mensajes blasteados</td>
@@ -452,19 +452,14 @@
             <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px" id="g-blasted-month">—</td>
           </tr>
           <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
-            <td style="padding:10px 12px;color:var(--text)">Leads en secuencias</td>
-            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:var(--accent)" id="g-leads">—</td>
-            <td style="padding:10px 12px;text-align:right;color:var(--muted);font-size:12px">activos ahora</td>
-          </tr>
-          <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
             <td style="padding:10px 12px;color:#a78bfa">Tasa SMS → Call</td>
-            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-sms-call">—%</td>
-            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-sms-call-month">—%</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-sms-call">0%</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-sms-call-month">0%</td>
           </tr>
           <tr>
             <td style="padding:10px 12px;color:#a78bfa">Tasa Call → LT</td>
-            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-call-lt">—%</td>
-            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-call-lt-month">—%</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-call-lt">0%</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:16px;color:#a78bfa" id="g-call-lt-month">0%</td>
           </tr>
         </tbody>
       </table>
@@ -696,22 +691,8 @@ function applyOptOutCard(elId, subId, cardId, rate, optouts, sent, label) {
 }
 
 async function loadMsgStats() {
-  try {
-    const r = await fetch('/api/msg-stats');
-    const d = await r.json();
-
-    applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today',
-      d.today?.optOutRate ?? 0, d.today?.optouts ?? 0, d.today?.sent ?? 0, 'hoy');
-
-    applyOptOutCard('g-optout-month', 'g-optout-month-sub', 'card-optout-month',
-      d.month?.optOutRate ?? 0, d.month?.optouts ?? 0, d.month?.sent ?? 0, d.month?.label ?? 'mes');
-
-    document.getElementById('last-sync').textContent = new Date().toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'});
-    document.getElementById('last-updated-footer').textContent = `Opt-out rate cargado · ${new Date().toLocaleTimeString('es-CL')}`;
-  } catch(e) {
-    document.getElementById('g-optout-today').textContent = 'Error';
-    document.getElementById('g-optout-month').textContent = 'Error';
-  }
+  applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today', 0, 0, 0, 'hoy');
+  applyOptOutCard('g-optout-month', 'g-optout-month-sub', 'card-optout-month', 0, 0, 0, 'mes');
 }
 
 // ── Globals (LTs, leads en secuencia, blasteados) ────────────
@@ -722,28 +703,9 @@ async function loadGlobals() {
     if (d.monthLabel)         document.getElementById('g-month-col').textContent      = d.monthLabel.toUpperCase();
     if (d.lts        != null) document.getElementById('g-lts').textContent           = d.lts.toLocaleString();
     if (d.ltsMonth   != null) document.getElementById('g-lts-month').textContent     = d.ltsMonth.toLocaleString();
-    if (d.calls      != null) document.getElementById('g-calls').textContent         = d.calls.toLocaleString();
-    if (d.callsMonth != null) document.getElementById('g-calls-month').textContent   = d.callsMonth.toLocaleString();
     if (d.smsTotal   != null) document.getElementById('g-blasted').textContent       = d.smsTotal.toLocaleString();
     if (d.smsMonth   != null) document.getElementById('g-blasted-month').textContent = d.smsMonth.toLocaleString();
     if (d.leadsInSeq != null) document.getElementById('g-leads').textContent         = d.leadsInSeq.toLocaleString();
-    // Tasas acumuladas
-    if (d.smsTotal && d.calls) {
-      const r = (d.calls / d.smsTotal * 100).toFixed(2);
-      document.getElementById('g-sms-call').textContent = r + '%';
-    }
-    if (d.smsMonth && d.callsMonth) {
-      const r = (d.callsMonth / d.smsMonth * 100).toFixed(2);
-      document.getElementById('g-sms-call-month').textContent = r + '%';
-    }
-    if (d.calls && d.lts) {
-      const r = (d.lts / d.calls * 100).toFixed(2);
-      document.getElementById('g-call-lt').textContent = r + '%';
-    }
-    if (d.callsMonth && d.ltsMonth) {
-      const r = (d.ltsMonth / d.callsMonth * 100).toFixed(2);
-      document.getElementById('g-call-lt-month').textContent = r + '%';
-    }
   } catch(e) {}
 }
 
