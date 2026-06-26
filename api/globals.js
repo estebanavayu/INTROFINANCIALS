@@ -33,6 +33,26 @@ async function fetchAllWon(pipelineId) {
   return all;
 }
 
+// Batch lookup de contactos por ID — devuelve Map<contactId, dateAdded>
+async function fetchContactDates(contactIds) {
+  const map = new Map();
+  const BATCH = 200;
+  for (let i = 0; i < contactIds.length; i += BATCH) {
+    const batch = contactIds.slice(i, i + BATCH);
+    const body  = JSON.stringify({
+      locationId: GHL_LOC,
+      filters: [{ field: 'id', operator: 'contains_set', value: batch }],
+      pageLimit: BATCH,
+    });
+    const res  = await fetch(`${GHL_V2}/contacts/search`, { method: 'POST', headers: hdrs(), body });
+    const data = await res.json().catch(() => ({}));
+    for (const c of (data.contacts ?? [])) {
+      if (c.id && c.dateAdded) map.set(c.id, new Date(c.dateAdded).getTime());
+    }
+  }
+  return map;
+}
+
 async function fetchLeadsInSequences() {
   const body = JSON.stringify({
     locationId: GHL_LOC,
@@ -45,7 +65,6 @@ async function fetchLeadsInSequences() {
   return data.total ?? data.meta?.total ?? null;
 }
 
-// Total de SMS outbound via messages/export — el único endpoint que funciona con pit- token
 async function fetchSmsBlasted(startDate, endDate) {
   const url = `${GHL_V2}/conversations/messages/export`
     + `?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
@@ -62,7 +81,6 @@ export default async function handler(req, res) {
     const now = new Date();
     const monthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const sinceMs      = new Date(SINCE).getTime();
-
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
     const todayStr      = now.toISOString().slice(0, 10);
 
@@ -75,31 +93,33 @@ export default async function handler(req, res) {
       fetchSmsBlasted(SINCE, todayStr),
     ]);
 
-    // Dedup por contactId
-    const byContact = new Map();
+    // Dedup por contactId — quedar con 1 opp por contacto
+    const seen = new Set();
+    const uniqueContactIds = [];
     for (const o of [...rise, ...ncn, ...century]) {
-      const key = o.contactId ?? o.contact?.id;
-      if (!key) continue;
-      const prev = byContact.get(key);
-      const tNew = new Date(o.lastStageChangeAt ?? o.createdAt ?? 0).getTime();
-      const tOld = prev ? new Date(prev.lastStageChangeAt ?? prev.createdAt ?? 0).getTime() : 0;
-      if (!prev || tNew > tOld) byContact.set(key, o);
+      const key = o.contactId;
+      if (key && !seen.has(key)) { seen.add(key); uniqueContactIds.push(key); }
     }
 
-    // Filtrar por lastStageChangeAt (cuando el opp pasó a Won)
-    const stageTs = o => new Date(o.lastStageChangeAt ?? o.createdAt ?? 0).getTime();
-    const allOpps   = [...byContact.values()].filter(o => stageTs(o) >= sinceMs);
-    const thisMonth = allOpps.filter(o => stageTs(o) >= monthStartMs);
+    // Batch lookup de dateAdded por contacto
+    const contactDates = await fetchContactDates(uniqueContactIds);
+
+    // Contar por contact.dateAdded (igual que el filtro GHL "Created")
+    let ltsTotal = 0, ltsMonth = 0;
+    for (const id of uniqueContactIds) {
+      const t = contactDates.get(id) ?? 0;
+      if (t >= sinceMs)      ltsTotal++;
+      if (t >= monthStartMs) ltsMonth++;
+    }
 
     res.json({
       since:      SINCE,
-      lts:        allOpps.length,
-      ltsMonth:   thisMonth.length,
+      lts:        ltsTotal,
+      ltsMonth,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
       smsMonth,
       smsTotal,
-      _debug: { rise: rise.length, ncn: ncn.length, century: century.length },
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
