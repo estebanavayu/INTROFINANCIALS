@@ -3,7 +3,6 @@ const GHL_V2  = 'https://services.leadconnectorhq.com';
 const SINCE   = '2026-02-01';
 
 const OPENING_PIPELINES = [
-  'fxzuSpmyNzMH4yupNfk1', // GENERAL OPENING
   '85kFh5EWKPg7qg9FDJfg',  // RISE OPENING
   'tzoH6Bv4qfC4Rug8yZvQ',  // NCN OPENING
   '8tbkIiJnJCnPZY6X0mA6',  // CENTURY OPENING (CC)
@@ -58,24 +57,22 @@ export default async function handler(req, res) {
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
 
-    const [lt0, lt1, lt2, lt3,
-           ltM0, ltM1, ltM2, ltM3,
+    const [lt0, lt1, lt2,
+           ltM0, ltM1, ltM2,
            seqData] = await Promise.all([
       fetchLtTotal(OPENING_PIPELINES[0]),
       fetchLtTotal(OPENING_PIPELINES[1]),
       fetchLtTotal(OPENING_PIPELINES[2]),
-      fetchLtTotal(OPENING_PIPELINES[3]),
       fetchLtMonth(OPENING_PIPELINES[0], monthStart),
       fetchLtMonth(OPENING_PIPELINES[1], monthStart),
       fetchLtMonth(OPENING_PIPELINES[2], monthStart),
-      fetchLtMonth(OPENING_PIPELINES[3], monthStart),
       fetchLeadsInSequences(),
     ]);
 
     res.json({
       since:      SINCE,
-      lts:        lt0 + lt1 + lt2 + lt3,
-      ltsMonth:   ltM0 + ltM1 + ltM2 + ltM3,
+      lts:        lt0 + lt1 + lt2,
+      ltsMonth:   ltM0 + ltM1 + ltM2,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
     });
