@@ -63,7 +63,18 @@ export default async function handler(req, res) {
       fetchLeadsInSequences(),
     ]);
 
-    const allOpps = [...rise, ...ncn, ...century];
+    // Dedup por contactId — mismo contacto puede ganar en RISE + NCN + CENTURY
+    // Quedar con el opp más reciente (mayor createdAt) por contacto
+    const byContact = new Map();
+    for (const o of [...rise, ...ncn, ...century]) {
+      const key = o.contactId ?? o.contact?.id;
+      if (!key) continue;
+      const prev = byContact.get(key);
+      const tNew = new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
+      const tOld = prev ? new Date(prev.createdAt ?? prev.dateAdded ?? 0).getTime() : 0;
+      if (!prev || tNew > tOld) byContact.set(key, o);
+    }
+    const allOpps = [...byContact.values()];
 
     // Filtrar por mes — GHL usa createdAt en las oportunidades
     const thisMonth = allOpps.filter(o => {
