@@ -23,24 +23,23 @@ async function fetchLtTotal(pipelineId) {
     + `?location_id=${GHL_LOC}`
     + `&pipeline_id=${pipelineId}`
     + `&status=won`
-    + `&startDate=${SINCE}`
     + `&limit=1`;
   const res  = await fetch(url, { headers: hdrs() });
   const data = await res.json().catch(() => ({}));
   return data.meta?.total ?? 0;
 }
 
-// Leads activos en algún workflow via POST search
+// Leads activos en workflow — buscar por tag "fup cold blast" o workflow enrollment
 async function fetchLeadsInSequences() {
   const body = JSON.stringify({
     locationId: GHL_LOC,
-    filters: [{ field: 'workflowId', operator: 'exists' }],
+    filters: [{ field: 'tags', operator: 'contains', value: 'fup cold blast' }],
     page: 1,
     pageLimit: 1,
   });
   const res  = await fetch(`${GHL_V2}/contacts/search`, { method: 'POST', headers: hdrs(), body });
   const data = await res.json().catch(() => ({}));
-  return { total: data.total ?? data.meta?.total ?? null, raw: data.contacts ? 'ok' : data };
+  return data.total ?? data.meta?.total ?? null;
 }
 
 export default async function handler(req, res) {
