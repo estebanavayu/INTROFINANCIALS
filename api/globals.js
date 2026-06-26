@@ -6,6 +6,7 @@ const OPENING_PIPELINES = [
   'fxzuSpmyNzMH4yupNfk1', // GENERAL OPENING
   '85kFh5EWKPg7qg9FDJfg',  // RISE OPENING
   'tzoH6Bv4qfC4Rug8yZvQ',  // NCN OPENING
+  '8tbkIiJnJCnPZY6X0mA6',  // CENTURY OPENING (CC)
 ];
 
 function hdrs() {
@@ -26,24 +27,14 @@ async function fetchLtTotal(pipelineId) {
   return data.meta?.total ?? 0;
 }
 
-// Won este mes — pagina todo y filtra por lastStatusChangeAt
-async function fetchLtMonth(pipelineId, monthStartMs) {
-  let count = 0, cursor = null;
-  while (true) {
-    let url = `${GHL_V2}/opportunities/search`
-      + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100`;
-    if (cursor) url += `&startAfter=${cursor.ts}&startAfterId=${cursor.id}`;
-    const res  = await fetch(url, { headers: hdrs() });
-    const data = await res.json().catch(() => ({}));
-    const opps = data.opportunities || [];
-    for (const o of opps) {
-      if (new Date(o.lastStatusChangeAt).getTime() >= monthStartMs) count++;
-    }
-    if (opps.length < 100) break;
-    const last = opps[opps.length - 1];
-    cursor = { ts: last.sort?.[0] ?? new Date(last.createdAt).getTime(), id: last.contactId };
-  }
-  return count;
+// Won este mes — filtra por createdAt (= startDate en GHL), igual que "Created this month"
+async function fetchLtMonth(pipelineId, monthStart) {
+  const url = `${GHL_V2}/opportunities/search`
+    + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won`
+    + `&startDate=${monthStart}&limit=1`;
+  const res  = await fetch(url, { headers: hdrs() });
+  const data = await res.json().catch(() => ({}));
+  return data.meta?.total ?? 0;
 }
 
 // Leads activos en workflow — buscar por tag "fup cold blast" o workflow enrollment
@@ -67,24 +58,24 @@ export default async function handler(req, res) {
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
 
-    const monthStartMs = new Date(monthStart).getTime();
-
-    const [ltGeneral, ltRise, ltNcn,
-           ltGeneralM, ltRiseM, ltNcnM,
+    const [lt0, lt1, lt2, lt3,
+           ltM0, ltM1, ltM2, ltM3,
            seqData] = await Promise.all([
       fetchLtTotal(OPENING_PIPELINES[0]),
       fetchLtTotal(OPENING_PIPELINES[1]),
       fetchLtTotal(OPENING_PIPELINES[2]),
-      fetchLtMonth(OPENING_PIPELINES[0], monthStartMs),
-      fetchLtMonth(OPENING_PIPELINES[1], monthStartMs),
-      fetchLtMonth(OPENING_PIPELINES[2], monthStartMs),
+      fetchLtTotal(OPENING_PIPELINES[3]),
+      fetchLtMonth(OPENING_PIPELINES[0], monthStart),
+      fetchLtMonth(OPENING_PIPELINES[1], monthStart),
+      fetchLtMonth(OPENING_PIPELINES[2], monthStart),
+      fetchLtMonth(OPENING_PIPELINES[3], monthStart),
       fetchLeadsInSequences(),
     ]);
 
     res.json({
       since:      SINCE,
-      lts:        ltGeneral + ltRise + ltNcn,
-      ltsMonth:   ltGeneralM + ltRiseM + ltNcnM,
+      lts:        lt0 + lt1 + lt2 + lt3,
+      ltsMonth:   ltM0 + ltM1 + ltM2 + ltM3,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
     });
