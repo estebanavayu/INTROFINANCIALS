@@ -82,12 +82,16 @@ export default async function handler(req, res) {
       return t >= monthStartMs;
     });
 
+    const raw = [...rise, ...ncn, ...century];
+    const withKey = raw.filter(o => o.contactId ?? o.contact?.id);
+
     res.json({
       since:      SINCE,
       lts:        allOpps.length,
       ltsMonth:   thisMonth.length,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
+      _debug: { raw: raw.length, withKey: withKey.length, deduped: allOpps.length, rise: rise.length, ncn: ncn.length, century: century.length, sample: raw[0] ? Object.keys(raw[0]) : [] },
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
