@@ -17,26 +17,24 @@ function hdrs() {
   };
 }
 
-// Total won sin filtro de fecha (usa meta.total)
-async function fetchLtTotal(pipelineId) {
-  const url = `${GHL_V2}/opportunities/search`
-    + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=1`;
-  const res  = await fetch(url, { headers: hdrs() });
-  const data = await res.json().catch(() => ({}));
-  return data.meta?.total ?? 0;
+// Pagina todos los won de un pipeline y retorna los objetos completos
+async function fetchAllWon(pipelineId) {
+  const all = [];
+  let page = 1;
+  while (true) {
+    const url = `${GHL_V2}/opportunities/search`
+      + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100&page=${page}`;
+    const res  = await fetch(url, { headers: hdrs() });
+    const data = await res.json().catch(() => ({}));
+    const opps = data.opportunities ?? [];
+    all.push(...opps);
+    if (all.length >= (data.meta?.total ?? 0) || opps.length === 0) break;
+    page++;
+  }
+  return all;
 }
 
-// Won este mes — filtra por createdAt (= startDate en GHL), igual que "Created this month"
-async function fetchLtMonth(pipelineId, monthStart) {
-  const url = `${GHL_V2}/opportunities/search`
-    + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won`
-    + `&startDate=${monthStart}&limit=1`;
-  const res  = await fetch(url, { headers: hdrs() });
-  const data = await res.json().catch(() => ({}));
-  return data.meta?.total ?? 0;
-}
-
-// Leads activos en workflow — buscar por tag "fup cold blast" o workflow enrollment
+// Leads activos en workflow — buscar por tag "fup cold blast"
 async function fetchLeadsInSequences() {
   const body = JSON.stringify({
     locationId: GHL_LOC,
@@ -55,25 +53,28 @@ export default async function handler(req, res) {
 
   try {
     const now = new Date();
-    const monthStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthStart = monthStartDate.getTime(); // Unix ms — GHL espera timestamp
+    const monthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-    const [lt0, lt1, lt2,
-           ltM0, ltM1, ltM2,
-           seqData] = await Promise.all([
-      fetchLtTotal(OPENING_PIPELINES[0]),
-      fetchLtTotal(OPENING_PIPELINES[1]),
-      fetchLtTotal(OPENING_PIPELINES[2]),
-      fetchLtMonth(OPENING_PIPELINES[0], monthStart),
-      fetchLtMonth(OPENING_PIPELINES[1], monthStart),
-      fetchLtMonth(OPENING_PIPELINES[2], monthStart),
+    // Traer todos los won de los 3 pipelines en paralelo
+    const [rise, ncn, century, seqData] = await Promise.all([
+      fetchAllWon(OPENING_PIPELINES[0]),
+      fetchAllWon(OPENING_PIPELINES[1]),
+      fetchAllWon(OPENING_PIPELINES[2]),
       fetchLeadsInSequences(),
     ]);
 
+    const allOpps = [...rise, ...ncn, ...century];
+
+    // Filtrar por mes — GHL usa createdAt en las oportunidades
+    const thisMonth = allOpps.filter(o => {
+      const t = new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
+      return t >= monthStartMs;
+    });
+
     res.json({
       since:      SINCE,
-      lts:        lt0 + lt1 + lt2,
-      ltsMonth:   ltM0 + ltM1 + ltM2,
+      lts:        allOpps.length,
+      ltsMonth:   thisMonth.length,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
     });
