@@ -71,30 +71,21 @@ async function fetchBlasted() {
   return data.total || data.count || null;
 }
 
+async function rawFetch(url) {
+  const res  = await fetch(url, { headers: hdrs() });
+  const data = await res.json().catch(() => ({}));
+  return { status: res.status, url, data };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  try {
-    // LTs: sumar los 3 pipelines en paralelo
-    const [ltsGeneral, ltsRise, ltsNcn, leadsInSeq, blasted] = await Promise.all([
-      paginateOpps(OPENING_PIPELINES[0]),
-      paginateOpps(OPENING_PIPELINES[1]),
-      paginateOpps(OPENING_PIPELINES[2]),
-      fetchLeadsInSequences(),
-      fetchBlasted(),
-    ]);
+  const [r1, r2, r3] = await Promise.all([
+    rawFetch(`${GHL_V2}/opportunities/search?location_id=${GHL_LOC}&pipeline_id=${OPENING_PIPELINES[0]}&status=won&limit=5`),
+    rawFetch(`${GHL_V2}/contacts/?locationId=${GHL_LOC}&workflowActivity=active&limit=5`),
+    rawFetch(`${GHL_V2}/contacts/?locationId=${GHL_LOC}&limit=1`),
+  ]);
 
-    const lts = ltsGeneral + ltsRise + ltsNcn;
-
-    res.json({
-      since:          SINCE,
-      lts,
-      leadsInSeq,
-      blasted,
-      debug: { ltsGeneral, ltsRise, ltsNcn },
-    });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
+  res.json({ opps: r1, workflow: r2, contacts: r3 });
 }
