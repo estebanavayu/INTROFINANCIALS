@@ -59,6 +59,6 @@ export default async function handler(req, res) {
       },
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message, stack: e.stack, sbUrl: !!SB_URL, sbKey: !!SB_KEY });
   }
 }
