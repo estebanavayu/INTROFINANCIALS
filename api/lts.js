@@ -62,11 +62,15 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // debug: muestra primeros 5 rows de ghl_wins sin filtros
+  // debug: prueba con el mismo filtro que usa el dashboard principal
   if (req.query?.debug === '1') {
-    const url = `${SUPABASE_URL}/rest/v1/ghl_wins?select=contact_id,pipeline_id,status,created_at&order=created_at.desc&limit=5`;
-    const raw = await fetch(url, { headers: SB_HDR }).then(r => r.json()).catch(e => ({ error: e.message }));
-    return res.json({ raw, count: Array.isArray(raw) ? raw.length : 'error' });
+    const pipelineId = '85kFh5EWKPg7qg9FDJfg'; // RISE OPENING
+    const url = `${SUPABASE_URL}/rest/v1/ghl_wins?pipeline_id=eq.${pipelineId}&status=eq.won&select=contact_id,pipeline_id,status,created_at&limit=5`;
+    const raw  = await fetch(url, { headers: SB_HDR }).then(r => r.json()).catch(e => ({ error: e.message }));
+    // también prueba sin filtros
+    const url2 = `${SUPABASE_URL}/rest/v1/ghl_wins?select=contact_id,status&limit=3`;
+    const raw2 = await fetch(url2, { headers: SB_HDR }).then(r => r.json()).catch(e => ({ error: e.message }));
+    return res.json({ withFilter: raw, withFilterCount: Array.isArray(raw) ? raw.length : 'error', noFilter: raw2 });
   }
 
   try {
