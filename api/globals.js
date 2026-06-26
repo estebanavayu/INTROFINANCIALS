@@ -8,6 +8,13 @@ const OPENING_PIPELINES = [
   '8tbkIiJnJCnPZY6X0mA6',  // CENTURY OPENING (CC)
 ];
 
+// Stage "Lead Ganado +60s" por pipeline — para Llamadas Concretadas
+const WON_STAGE = {
+  '85kFh5EWKPg7qg9FDJfg': 'b49467aa-ee9f-462c-ade5-775d9bbf4ac2',
+  'tzoH6Bv4qfC4Rug8yZvQ': 'f5ecb2a9-050d-4f75-a007-e25ab2c12c30',
+  '8tbkIiJnJCnPZY6X0mA6': 'fb6853c0-f7b8-4b68-ad9d-c43e339ea9a5',
+};
+
 function hdrs() {
   return {
     'Authorization': `Bearer ${process.env.GHL_TOKEN}`,
@@ -93,29 +100,35 @@ export default async function handler(req, res) {
       fetchSmsBlasted(SINCE, todayStr),
     ]);
 
-    // Dedup por contactId — quedar con 1 opp por contacto
-    const seen = new Set();
-    const uniqueContactIds = [];
+    // Dedup por contactId — quedar con 1 opp por contacto (la más reciente)
+    const byContact = new Map();
     for (const o of [...rise, ...ncn, ...century]) {
-      const key = o.contactId;
-      if (key && !seen.has(key)) { seen.add(key); uniqueContactIds.push(key); }
+      if (!o.contactId) continue;
+      const prev = byContact.get(o.contactId);
+      if (!prev || (o.lastStageChangeAt > (prev.lastStageChangeAt ?? ''))) {
+        byContact.set(o.contactId, o);
+      }
     }
+    const uniqueContactIds = [...byContact.keys()];
 
     // Batch lookup de dateAdded por contacto
     const contactDates = await fetchContactDates(uniqueContactIds);
 
-    // Contar por contact.dateAdded (igual que el filtro GHL "Created")
-    let ltsTotal = 0, ltsMonth = 0;
-    for (const id of uniqueContactIds) {
-      const t = contactDates.get(id) ?? 0;
-      if (t >= sinceMs)      ltsTotal++;
-      if (t >= monthStartMs) ltsMonth++;
+    // Contar LTs y llamadas concretadas por contact.dateAdded
+    let ltsTotal = 0, ltsMonth = 0, callsTotal = 0, callsMonth = 0;
+    for (const [id, opp] of byContact) {
+      const t       = contactDates.get(id) ?? 0;
+      const isCall  = WON_STAGE[opp.pipelineId] === opp.pipelineStageId;
+      if (t >= sinceMs)      { ltsTotal++;  if (isCall) callsTotal++; }
+      if (t >= monthStartMs) { ltsMonth++;  if (isCall) callsMonth++; }
     }
 
     res.json({
       since:      SINCE,
       lts:        ltsTotal,
       ltsMonth,
+      calls:      callsTotal,
+      callsMonth,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
       smsMonth,
