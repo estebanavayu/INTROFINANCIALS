@@ -84,14 +84,19 @@ export default async function handler(req, res) {
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
     const todayStr      = now.toISOString().slice(0, 10);
 
-    // Fetch paralelo: won opps + call-stage opps + aux
-    const wonResults  = await Promise.all(PIPELINES.map(p => fetchAllOpps(p.id, { status: 'won' })));
-    const callResults = await Promise.all(PIPELINES.map((p, i) => fetchAllOpps(p.id, { pipeline_stage_id: p.callStage })));
-    const [seqData, smsMonth, smsTotal] = await Promise.all([
+    // Todo en paralelo
+    const [
+      ...allResults
+    ] = await Promise.all([
+      ...PIPELINES.map(p => fetchAllOpps(p.id, { status: 'won' })),
+      ...PIPELINES.map(p => fetchAllOpps(p.id, { pipeline_stage_id: p.callStage })),
       fetchLeadsInSequences(),
       fetchSmsTotal(monthStartStr, todayStr),
       fetchSmsTotal(SINCE, todayStr),
     ]);
+    const wonResults  = allResults.slice(0, 3);
+    const callResults = allResults.slice(3, 6);
+    const [seqData, smsMonth, smsTotal] = allResults.slice(6);
 
     // Dedup contactIds
     const wonMap  = dedupByContact(wonResults.flat());

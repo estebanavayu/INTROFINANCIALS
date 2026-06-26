@@ -3,6 +3,7 @@
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],
   "functions": {
-    "api/backfill.js": { "maxDuration": 300 }
+    "api/backfill.js": { "maxDuration": 300 },
+    "api/globals.js":  { "maxDuration": 60 }
   }
 }
