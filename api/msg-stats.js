@@ -34,11 +34,11 @@ export default async function handler(req, res) {
     const [sentToday, failedToday, optoutsToday,
            sentMonth, failedMonth, optoutsMonth] =
       await Promise.all([
-        count('msg_events',    { status: 'eq.sent',   ts: `gte.${todayISO}` }),
-        count('msg_events',    { status: 'eq.failed', ts: `gte.${todayISO}` }),
+        count('msg_events',    { ts: `gte.${todayISO}`, status: 'neq.failed' }),
+        count('msg_events',    { ts: `gte.${todayISO}`, status: 'eq.failed' }),
         count('optout_events', { ts: `gte.${todayISO}` }),
-        count('msg_events',    { status: 'eq.sent',   ts: `gte.${monthStart}` }),
-        count('msg_events',    { status: 'eq.failed', ts: `gte.${monthStart}` }),
+        count('msg_events',    { ts: `gte.${monthStart}`, status: 'neq.failed' }),
+        count('msg_events',    { ts: `gte.${monthStart}`, status: 'eq.failed' }),
         count('optout_events', { ts: `gte.${monthStart}` }),
       ]);
 
