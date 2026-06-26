@@ -55,7 +55,8 @@ export default async function handler(req, res) {
 
   try {
     const now = new Date();
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const monthStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStart = monthStartDate.getTime(); // Unix ms — GHL espera timestamp
 
     const [lt0, lt1, lt2,
            ltM0, ltM1, ltM2,
