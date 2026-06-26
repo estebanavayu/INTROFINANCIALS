@@ -49,10 +49,14 @@ async function fetchContactDates(contactIds) {
 }
 
 async function fetchLeadsInSequences() {
-  const body = JSON.stringify({ locationId: GHL_LOC, filters: [{ field: 'tags', operator: 'contains', value: 'fup cold blast' }], page: 1, pageLimit: 1 });
-  const res  = await fetch(`${GHL_V2}/contacts/search`, { method: 'POST', headers: hdrs(), body });
-  const data = await res.json().catch(() => ({}));
-  return data.total ?? data.meta?.total ?? null;
+  // Contactos activos en los 3 workflows — proxy via tags de trigger
+  const tags = ['handoff james', 'sent from partner', 'tt-cc'];
+  const counts = await Promise.all(tags.map(tag => {
+    const body = JSON.stringify({ locationId: GHL_LOC, filters: [{ field: 'tags', operator: 'contains', value: tag }], page: 1, pageLimit: 1 });
+    return fetch(`${GHL_V2}/contacts/search`, { method: 'POST', headers: hdrs(), body })
+      .then(r => r.json()).then(d => d.total ?? d.meta?.total ?? 0).catch(() => 0);
+  }));
+  return counts.reduce((a, b) => a + b, 0);
 }
 
 async function fetchSmsTotal(startDate, endDate) {
