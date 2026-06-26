@@ -17,16 +17,35 @@ function hdrs() {
   };
 }
 
-async function fetchLtTotal(pipelineId, startDate) {
-  let url = `${GHL_V2}/opportunities/search`
-    + `?location_id=${GHL_LOC}`
-    + `&pipeline_id=${pipelineId}`
-    + `&status=won`
-    + `&limit=1`;
-  if (startDate) url += `&startDate=${startDate}`;
+// Total won sin filtro de fecha (usa meta.total)
+async function fetchLtTotal(pipelineId) {
+  const url = `${GHL_V2}/opportunities/search`
+    + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=1`;
   const res  = await fetch(url, { headers: hdrs() });
   const data = await res.json().catch(() => ({}));
   return data.meta?.total ?? 0;
+}
+
+// Won este mes — pagina todo y filtra por lastStatusChangeAt
+async function fetchLtMonth(pipelineId, monthStartMs) {
+  let count = 0, cursor = null;
+  while (true) {
+    let url = `${GHL_V2}/opportunities/search`
+      + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100`;
+    if (cursor) url += `&startAfter=${cursor.ts}&startAfterId=${cursor.id}`;
+    const res  = await fetch(url, { headers: hdrs() });
+    const data = await res.json().catch(() => ({}));
+    const opps = data.opportunities || [];
+    for (const o of opps) {
+      const wonAt = new Date(o.lastStatusChangeAt).getTime();
+      if (wonAt >= monthStartMs) count++;
+      // si el opp es muy viejo podemos parar (ordenados desc por createdAt)
+    }
+    if (opps.length < 100) break;
+    const last = opps[opps.length - 1];
+    cursor = { ts: last.sort?.[0] ?? new Date(last.createdAt).getTime(), id: last.contactId };
+  }
+  return count;
 }
 
 // Leads activos en workflow — buscar por tag "fup cold blast" o workflow enrollment
@@ -50,15 +69,17 @@ export default async function handler(req, res) {
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
 
+    const monthStartMs = new Date(monthStart).getTime();
+
     const [ltGeneral, ltRise, ltNcn,
            ltGeneralM, ltRiseM, ltNcnM,
            seqData] = await Promise.all([
       fetchLtTotal(OPENING_PIPELINES[0]),
       fetchLtTotal(OPENING_PIPELINES[1]),
       fetchLtTotal(OPENING_PIPELINES[2]),
-      fetchLtTotal(OPENING_PIPELINES[0], monthStart),
-      fetchLtTotal(OPENING_PIPELINES[1], monthStart),
-      fetchLtTotal(OPENING_PIPELINES[2], monthStart),
+      fetchLtMonth(OPENING_PIPELINES[0], monthStartMs),
+      fetchLtMonth(OPENING_PIPELINES[1], monthStartMs),
+      fetchLtMonth(OPENING_PIPELINES[2], monthStartMs),
       fetchLeadsInSequences(),
     ]);
 
