@@ -99,18 +99,23 @@ export default async function handler(req, res) {
     }
 
     // ── PARTE 2: Mensajes enviados históricos ────────────────
+    let nextCursor = null;
     if (mode === 'msgs' || mode === 'both') {
-      let startAfterId = null;
+      let startAfterId = req.query?.cursor || null;
       let pages = 0;
       const sinceMs = new Date(SINCE).getTime();
+      const deadline = Date.now() + 240_000; // 4 min max, dejar margen
 
-      while (pages < 200) {
+      while (pages < 500) {
+        if (Date.now() > deadline) {
+          nextCursor = startAfterId;
+          break;
+        }
         const data = await fetchConversations(startAfterId);
         const convs = data.conversations || [];
         if (!convs.length) break;
 
         for (const conv of convs) {
-          // saltar conversaciones sin actividad SMS reciente
           const lastMsg = new Date(conv.lastMessageDate || 0).getTime();
           if (lastMsg < sinceMs) continue;
 
@@ -145,7 +150,7 @@ export default async function handler(req, res) {
       }
     }
 
-    res.json({ ok: true, since: SINCE, stats });
+    res.json({ ok: true, since: SINCE, stats, nextCursor, done: !nextCursor });
 
   } catch (e) {
     res.status(500).json({ error: e.message, stats });
