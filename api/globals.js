@@ -76,17 +76,13 @@ export default async function handler(req, res) {
     }
     const sinceMs = new Date(SINCE).getTime();
 
-    // Filtrar por periodo (desde Feb 1) — el total que ve el usuario
-    const allOpps = [...byContact.values()].filter(o => {
-      const t = new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
-      return t >= sinceMs;
-    });
+    const wonAt = o => new Date(o.lastStatusChangeAt ?? o.createdAt ?? 0).getTime();
 
-    // Filtrar por mes
-    const thisMonth = allOpps.filter(o => {
-      const t = new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
-      return t >= monthStartMs;
-    });
+    // Filtrar por wonAt >= Feb 1
+    const allOpps = [...byContact.values()].filter(o => wonAt(o) >= sinceMs);
+
+    // Filtrar por wonAt >= inicio del mes
+    const thisMonth = allOpps.filter(o => wonAt(o) >= monthStartMs);
 
     const raw = [...rise, ...ncn, ...century];
     const withKey = raw.filter(o => o.contactId ?? o.contact?.id);
