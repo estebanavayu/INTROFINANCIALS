@@ -17,7 +17,6 @@ function hdrs() {
   };
 }
 
-// Pagina todos los won de un pipeline y retorna los objetos completos
 async function fetchAllWon(pipelineId) {
   const all = [];
   let page = 1;
@@ -34,7 +33,6 @@ async function fetchAllWon(pipelineId) {
   return all;
 }
 
-// Leads activos en workflow — buscar por tag "fup cold blast"
 async function fetchLeadsInSequences() {
   const body = JSON.stringify({
     locationId: GHL_LOC,
@@ -47,6 +45,15 @@ async function fetchLeadsInSequences() {
   return data.total ?? data.meta?.total ?? null;
 }
 
+// Total de SMS outbound via messages/export — el único endpoint que funciona con pit- token
+async function fetchSmsBlasted(startDate, endDate) {
+  const url = `${GHL_V2}/conversations/messages/export`
+    + `?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
+  const res  = await fetch(url, { headers: hdrs() });
+  const data = await res.json().catch(() => ({}));
+  return data.total ?? null;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -54,37 +61,35 @@ export default async function handler(req, res) {
   try {
     const now = new Date();
     const monthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const sinceMs      = new Date(SINCE).getTime();
 
-    // Traer todos los won de los 3 pipelines en paralelo
-    const [rise, ncn, century, seqData] = await Promise.all([
+    const monthStartStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const todayStr      = now.toISOString().slice(0, 10);
+
+    const [rise, ncn, century, seqData, smsMonth, smsTotal] = await Promise.all([
       fetchAllWon(OPENING_PIPELINES[0]),
       fetchAllWon(OPENING_PIPELINES[1]),
       fetchAllWon(OPENING_PIPELINES[2]),
       fetchLeadsInSequences(),
+      fetchSmsBlasted(monthStartStr, todayStr),
+      fetchSmsBlasted(SINCE, todayStr),
     ]);
 
-    // Dedup por contactId — mismo contacto puede ganar en RISE + NCN + CENTURY
-    // Quedar con el opp más reciente (mayor createdAt) por contacto
+    // Dedup por contactId
     const byContact = new Map();
     for (const o of [...rise, ...ncn, ...century]) {
       const key = o.contactId ?? o.contact?.id;
       if (!key) continue;
       const prev = byContact.get(key);
-      const tNew = new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
-      const tOld = prev ? new Date(prev.createdAt ?? prev.dateAdded ?? 0).getTime() : 0;
+      const tNew = new Date(o.lastStageChangeAt ?? o.createdAt ?? 0).getTime();
+      const tOld = prev ? new Date(prev.lastStageChangeAt ?? prev.createdAt ?? 0).getTime() : 0;
       if (!prev || tNew > tOld) byContact.set(key, o);
     }
-    const sinceMs = new Date(SINCE).getTime();
-    const ts = o => new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
 
-    // Total desde Feb 1
-    const allOpps = [...byContact.values()].filter(o => ts(o) >= sinceMs);
-
-    // Este mes
-    const thisMonth = allOpps.filter(o => ts(o) >= monthStartMs);
-
-    const raw = [...rise, ...ncn, ...century];
-    const withKey = raw.filter(o => o.contactId ?? o.contact?.id);
+    // Filtrar por lastStageChangeAt (cuando el opp pasó a Won)
+    const stageTs = o => new Date(o.lastStageChangeAt ?? o.createdAt ?? 0).getTime();
+    const allOpps   = [...byContact.values()].filter(o => stageTs(o) >= sinceMs);
+    const thisMonth = allOpps.filter(o => stageTs(o) >= monthStartMs);
 
     res.json({
       since:      SINCE,
@@ -92,7 +97,9 @@ export default async function handler(req, res) {
       ltsMonth:   thisMonth.length,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
-      _debug: { raw: raw.length, withKey: withKey.length, deduped: allOpps.length, rise: rise.length, ncn: ncn.length, century: century.length, sample: raw[0] ? Object.keys(raw[0]) : [] },
+      smsMonth,
+      smsTotal,
+      _debug: { rise: rise.length, ncn: ncn.length, century: century.length },
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
