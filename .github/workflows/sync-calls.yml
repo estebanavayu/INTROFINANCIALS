@@ -1,0 +1,22 @@
+name: Sync Call Records
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 6 AM UTC = 2 AM Chile (fuera de horario de llamadas)
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sync calls GHL → Supabase
+        env:
+          GHL_TOKEN:       ${{ secrets.GHL_TOKEN_IF }}
+          IF_SUPABASE_URL: ${{ secrets.IF_SUPABASE_URL }}
+          IF_SUPABASE_KEY: ${{ secrets.IF_SUPABASE_KEY }}
+        run: node _sync_calls.mjs
+        working-directory: .

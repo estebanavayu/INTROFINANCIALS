@@ -2,6 +2,27 @@ const GHL_LOC = 'NXZFG9aQz6r1UXzZoedy';
 const GHL_V2  = 'https://services.leadconnectorhq.com';
 const SINCE   = '2026-02-01';
 
+const SB_URL = process.env.IF_SUPABASE_URL;
+const SB_KEY = process.env.IF_SUPABASE_KEY;
+
+async function fetchCallsFromSupabase(startISO, endISO) {
+  if (!SB_URL || !SB_KEY) return null;
+  const params = new URLSearchParams({
+    select: 'id',
+    direction: 'eq.outbound',
+    status: 'eq.completed',
+    date_added: `gte.${startISO}`,
+    'date_added.lte': endISO,
+  });
+  // Filtro duration > 30 via header
+  const r = await fetch(
+    `${SB_URL}/rest/v1/call_records?${params}&duration=gte.30`,
+    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
+  );
+  const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
+  return isNaN(total) ? null : total;
+}
+
 const PIPELINES = [
   { id: '85kFh5EWKPg7qg9FDJfg' }, // RISE OPENING
   { id: 'tzoH6Bv4qfC4Rug8yZvQ' }, // NCN OPENING
@@ -77,13 +98,19 @@ export default async function handler(req, res) {
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
     const todayStr      = now.toISOString().slice(0, 10);
 
-    // Todo en paralelo
-    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal] = await Promise.all([
+    const sinceISO      = new Date(SINCE).toISOString();
+    const monthStartISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const nowISO        = now.toISOString();
+
+    // Todo en paralelo — GHL + Supabase
+    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal, callsTotal, callsMonth] = await Promise.all([
       fetchAllOpps(PIPELINES[0].id, { status: 'won' }),
       fetchAllOpps(PIPELINES[1].id, { status: 'won' }),
       fetchAllOpps(PIPELINES[2].id, { status: 'won' }),
       fetchSmsTotal(monthStartStr, todayStr),
       fetchSmsTotal(SINCE, todayStr),
+      fetchCallsFromSupabase(sinceISO, nowISO),
+      fetchCallsFromSupabase(monthStartISO, nowISO),
     ]);
 
     // Dedup contactIds por wonAt más reciente
@@ -103,6 +130,7 @@ export default async function handler(req, res) {
     res.json({
       since: SINCE,
       lts: ltsTotal, ltsMonth,
+      calls: callsTotal, callsMonth,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       smsMonth, smsTotal,
     });

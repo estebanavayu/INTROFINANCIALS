@@ -703,9 +703,15 @@ async function loadGlobals() {
     if (d.monthLabel)         document.getElementById('g-month-col').textContent      = d.monthLabel.toUpperCase();
     if (d.lts        != null) document.getElementById('g-lts').textContent           = d.lts.toLocaleString();
     if (d.ltsMonth   != null) document.getElementById('g-lts-month').textContent     = d.ltsMonth.toLocaleString();
+    if (d.calls      != null) { document.getElementById('g-calls').textContent       = d.calls.toLocaleString(); }
+    if (d.callsMonth != null) { document.getElementById('g-calls-month').textContent = d.callsMonth.toLocaleString(); }
     if (d.smsTotal   != null) document.getElementById('g-blasted').textContent       = d.smsTotal.toLocaleString();
     if (d.smsMonth   != null) document.getElementById('g-blasted-month').textContent = d.smsMonth.toLocaleString();
-    if (d.leadsInSeq != null) document.getElementById('g-leads').textContent         = d.leadsInSeq.toLocaleString();
+    // Tasas (solo si tenemos ambos datos)
+    if (d.smsTotal && d.calls) document.getElementById('g-sms-call').textContent       = (d.calls/d.smsTotal*100).toFixed(2)+'%';
+    if (d.smsMonth && d.callsMonth) document.getElementById('g-sms-call-month').textContent = (d.callsMonth/d.smsMonth*100).toFixed(2)+'%';
+    if (d.calls && d.lts) document.getElementById('g-call-lt').textContent             = (d.lts/d.calls*100).toFixed(2)+'%';
+    if (d.callsMonth && d.ltsMonth) document.getElementById('g-call-lt-month').textContent = (d.ltsMonth/d.callsMonth*100).toFixed(2)+'%';
   } catch(e) {}
 }
 
