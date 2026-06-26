@@ -55,10 +55,9 @@ export default async function handler(req, res) {
     ]);
 
     res.json({
-      since:     SINCE,
-      lts:       ltGeneral + ltRise + ltNcn,
-      leadsInSeq: seqData.total,
-      debug:     { ltGeneral, ltRise, ltNcn, seqData },
+      since:      SINCE,
+      lts:        ltGeneral + ltRise + ltNcn,
+      leadsInSeq: seqData,
     });
   } catch(e) {
     res.status(500).json({ error: e.message });

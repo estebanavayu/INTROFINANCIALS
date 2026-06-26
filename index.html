@@ -713,9 +713,21 @@ async function loadMsgStats() {
   }
 }
 
+// ── Globals (LTs, leads en secuencia, blasteados) ────────────
+async function loadGlobals() {
+  try {
+    const r = await fetch('/api/globals');
+    const d = await r.json();
+    if (d.lts        != null) document.getElementById('g-lts').textContent     = d.lts.toLocaleString();
+    if (d.leadsInSeq != null) document.getElementById('g-leads').textContent   = d.leadsInSeq.toLocaleString();
+  } catch(e) {}
+}
+
 // ── Init ─────────────────────────────────────────────────────
 loadMsgStats();
+loadGlobals();
 setInterval(loadMsgStats, 5 * 60 * 1000);
+setInterval(loadGlobals,  5 * 60 * 1000);
 </script>
 
 </body>
