@@ -3,7 +3,7 @@ const GHL_V2  = 'https://services.leadconnectorhq.com';
 const SB_URL  = process.env.IF_SUPABASE_URL;
 const SB_KEY  = process.env.IF_SUPABASE_KEY;
 
-const SINCE = '2026-06-01T00:00:00.000Z';
+const SINCE = '2026-02-01T00:00:00.000Z';
 
 function ghlHdrs() {
   return {
