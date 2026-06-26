@@ -74,9 +74,15 @@ export default async function handler(req, res) {
       const tOld = prev ? new Date(prev.createdAt ?? prev.dateAdded ?? 0).getTime() : 0;
       if (!prev || tNew > tOld) byContact.set(key, o);
     }
-    const allOpps = [...byContact.values()];
+    const sinceMs = new Date(SINCE).getTime();
 
-    // Filtrar por mes — GHL usa createdAt en las oportunidades
+    // Filtrar por periodo (desde Feb 1) — el total que ve el usuario
+    const allOpps = [...byContact.values()].filter(o => {
+      const t = new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
+      return t >= sinceMs;
+    });
+
+    // Filtrar por mes
     const thisMonth = allOpps.filter(o => {
       const t = new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
       return t >= monthStartMs;
