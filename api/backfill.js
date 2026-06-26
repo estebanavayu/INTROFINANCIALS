@@ -41,8 +41,12 @@ async function fetchConversations(startAfter = null) {
 async function fetchMessages(conversationId) {
   const url = `${GHL_V2}/conversations/${conversationId}/messages?limit=100`;
   const res = await fetch(url, { headers: ghlHdrs() });
-  const data = await res.json().catch(() => ({ messages: [] }));
-  return data.messages || [];
+  const data = await res.json().catch(() => ({}));
+  // GHL devuelve { messages: { messages: [...] } } o { messages: [...] }
+  const msgs = data.messages;
+  if (Array.isArray(msgs)) return msgs;
+  if (msgs && Array.isArray(msgs.messages)) return msgs.messages;
+  return [];
 }
 
 // Trae contactos con DND=true actualizados desde SINCE (opt-outs históricos)
