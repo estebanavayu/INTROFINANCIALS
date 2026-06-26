@@ -28,7 +28,7 @@ async function fetchLtTotal(pipelineId) {
 
 // Won este mes — pagina todo y filtra por lastStatusChangeAt
 async function fetchLtMonth(pipelineId, monthStartMs) {
-  let count = 0, cursor = null, pages = 0, sample = null;
+  let count = 0, cursor = null;
   while (true) {
     let url = `${GHL_V2}/opportunities/search`
       + `?location_id=${GHL_LOC}&pipeline_id=${pipelineId}&status=won&limit=100`;
@@ -36,17 +36,14 @@ async function fetchLtMonth(pipelineId, monthStartMs) {
     const res  = await fetch(url, { headers: hdrs() });
     const data = await res.json().catch(() => ({}));
     const opps = data.opportunities || [];
-    pages++;
-    if (!sample && opps[0]) sample = { lastStatusChangeAt: opps[0].lastStatusChangeAt, monthStartMs };
     for (const o of opps) {
-      const wonAt = new Date(o.lastStatusChangeAt).getTime();
-      if (wonAt >= monthStartMs) count++;
+      if (new Date(o.lastStatusChangeAt).getTime() >= monthStartMs) count++;
     }
     if (opps.length < 100) break;
     const last = opps[opps.length - 1];
     cursor = { ts: last.sort?.[0] ?? new Date(last.createdAt).getTime(), id: last.contactId };
   }
-  return { count, pages, sample };
+  return count;
 }
 
 // Leads activos en workflow — buscar por tag "fup cold blast" o workflow enrollment
@@ -87,10 +84,9 @@ export default async function handler(req, res) {
     res.json({
       since:      SINCE,
       lts:        ltGeneral + ltRise + ltNcn,
-      ltsMonth:   ltGeneralM.count + ltRiseM.count + ltNcnM.count,
+      ltsMonth:   ltGeneralM + ltRiseM + ltNcnM,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       leadsInSeq: seqData,
-      debug:      { ltGeneralM, ltRiseM, ltNcnM },
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
