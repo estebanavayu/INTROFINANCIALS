@@ -20,36 +20,31 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const days  = parseInt(req.query.days || '30');
-  const since = new Date(Date.now() - days * 86400_000).toISOString();
+  const now = new Date();
 
-  // today window
-  const todayStart = new Date();
+  // Hoy
+  const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
   const todayISO = todayStart.toISOString();
 
+  // Mes actual (del 1 al día de hoy)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
   try {
-    const [sent30, failed30, optouts30, sentToday, failedToday, optoutsToday] =
+    const [sentToday, failedToday, optoutsToday,
+           sentMonth, failedMonth, optoutsMonth] =
       await Promise.all([
-        count('msg_events',    { 'status': 'eq.sent',   'ts': `gte.${since}` }),
-        count('msg_events',    { 'status': 'eq.failed', 'ts': `gte.${since}` }),
-        count('optout_events', { 'ts': `gte.${since}` }),
-        count('msg_events',    { 'status': 'eq.sent',   'ts': `gte.${todayISO}` }),
-        count('msg_events',    { 'status': 'eq.failed', 'ts': `gte.${todayISO}` }),
-        count('optout_events', { 'ts': `gte.${todayISO}` }),
+        count('msg_events',    { status: 'eq.sent',   ts: `gte.${todayISO}` }),
+        count('msg_events',    { status: 'eq.failed', ts: `gte.${todayISO}` }),
+        count('optout_events', { ts: `gte.${todayISO}` }),
+        count('msg_events',    { status: 'eq.sent',   ts: `gte.${monthStart}` }),
+        count('msg_events',    { status: 'eq.failed', ts: `gte.${monthStart}` }),
+        count('optout_events', { ts: `gte.${monthStart}` }),
       ]);
 
     const pct = (n, d) => d > 0 ? +((n / d) * 100).toFixed(2) : 0;
 
     res.json({
-      rolling: {
-        days,
-        sent:       sent30,
-        failed:     failed30,
-        optouts:    optouts30,
-        optOutRate: pct(optouts30, sent30),
-        errorRate:  pct(failed30,  sent30),
-      },
       today: {
         sent:       sentToday,
         failed:     failedToday,
@@ -57,8 +52,16 @@ export default async function handler(req, res) {
         optOutRate: pct(optoutsToday, sentToday),
         errorRate:  pct(failedToday,  sentToday),
       },
+      month: {
+        label:      `${now.toLocaleString('es-CL', { month: 'long' })} ${now.getFullYear()}`,
+        sent:       sentMonth,
+        failed:     failedMonth,
+        optouts:    optoutsMonth,
+        optOutRate: pct(optoutsMonth, sentMonth),
+        errorRate:  pct(failedMonth,  sentMonth),
+      },
     });
   } catch (e) {
-    res.status(500).json({ error: e.message, stack: e.stack, sbUrl: !!SB_URL, sbKey: !!SB_KEY });
+    res.status(500).json({ error: e.message, sbUrl: !!SB_URL, sbKey: !!SB_KEY });
   }
 }

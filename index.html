@@ -464,10 +464,15 @@
         <div class="kpi-sub">llamadas → live transfers</div>
         <div class="progress-bar"><div class="progress-bar-fill" style="background:#7c3aed" id="pb-call-lt" style="width:0%"></div></div>
       </div>
-      <div class="kpi-card" id="card-optout" style="border-color:rgba(239,68,68,0.2)">
-        <div class="kpi-label" style="color:#f87171">Opt-out rate SMS</div>
-        <div class="kpi-value" id="g-optout-rate">—%</div>
-        <div class="kpi-sub" id="g-optout-sub">últimos 30 días</div>
+      <div class="kpi-card" id="card-optout-today" style="border-color:rgba(239,68,68,0.2)">
+        <div class="kpi-label" style="color:#f87171">Opt-out rate · Hoy</div>
+        <div class="kpi-value" id="g-optout-today">—%</div>
+        <div class="kpi-sub" id="g-optout-today-sub">—</div>
+      </div>
+      <div class="kpi-card" id="card-optout-month" style="border-color:rgba(239,68,68,0.2)">
+        <div class="kpi-label" style="color:#f87171">Opt-out rate · Mes</div>
+        <div class="kpi-value" id="g-optout-month">—%</div>
+        <div class="kpi-sub" id="g-optout-month-sub">—</div>
       </div>
     </div>
   </div>
@@ -671,31 +676,33 @@ updateClock();
 function hardRefresh() { loadMsgStats(); }
 
 // ── Opt-out rate ─────────────────────────────────────────────
+function applyOptOutCard(elId, subId, cardId, rate, optouts, sent, label) {
+  const el   = document.getElementById(elId);
+  const sub  = document.getElementById(subId);
+  const card = document.getElementById(cardId);
+  el.textContent  = rate.toFixed(2) + '%';
+  sub.textContent = `${optouts} opt-outs / ${sent.toLocaleString()} enviados · ${label}`;
+  if (rate <= 3)      { el.style.color = 'var(--green)';  card.style.borderColor = 'rgba(34,197,94,0.3)'; }
+  else if (rate <= 5) { el.style.color = 'var(--yellow)'; card.style.borderColor = 'rgba(245,158,11,0.3)'; }
+  else                { el.style.color = 'var(--red)';    card.style.borderColor = 'rgba(239,68,68,0.4)'; }
+}
+
 async function loadMsgStats() {
   try {
-    const r = await fetch('/api/msg-stats?days=30');
+    const r = await fetch('/api/msg-stats');
     const d = await r.json();
-    const rate = d.rolling?.optOutRate ?? null;
-    const sent = d.rolling?.sent ?? 0;
-    const optouts = d.rolling?.optouts ?? 0;
 
-    const el = document.getElementById('g-optout-rate');
-    const sub = document.getElementById('g-optout-sub');
-    const card = document.getElementById('card-optout');
+    applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today',
+      d.today?.optOutRate ?? 0, d.today?.optouts ?? 0, d.today?.sent ?? 0, 'hoy');
 
-    if (rate === null) { el.textContent = '—%'; return; }
-
-    el.textContent = rate.toFixed(2) + '%';
-    sub.textContent = `${optouts} opt-outs / ${sent.toLocaleString()} enviados · 30d`;
-
-    if (rate <= 3)       { el.style.color = 'var(--green)';  card.style.borderColor = 'rgba(34,197,94,0.3)'; }
-    else if (rate <= 5)  { el.style.color = 'var(--yellow)'; card.style.borderColor = 'rgba(245,158,11,0.3)'; }
-    else                 { el.style.color = 'var(--red)';    card.style.borderColor = 'rgba(239,68,68,0.4)'; }
+    applyOptOutCard('g-optout-month', 'g-optout-month-sub', 'card-optout-month',
+      d.month?.optOutRate ?? 0, d.month?.optouts ?? 0, d.month?.sent ?? 0, d.month?.label ?? 'mes');
 
     document.getElementById('last-sync').textContent = new Date().toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'});
     document.getElementById('last-updated-footer').textContent = `Opt-out rate cargado · ${new Date().toLocaleTimeString('es-CL')}`;
   } catch(e) {
-    document.getElementById('g-optout-rate').textContent = 'Error';
+    document.getElementById('g-optout-today').textContent = 'Error';
+    document.getElementById('g-optout-month').textContent = 'Error';
   }
 }
 
