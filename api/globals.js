@@ -75,14 +75,13 @@ export default async function handler(req, res) {
       if (!prev || tNew > tOld) byContact.set(key, o);
     }
     const sinceMs = new Date(SINCE).getTime();
+    const ts = o => new Date(o.createdAt ?? o.dateAdded ?? 0).getTime();
 
-    const wonAt = o => new Date(o.lastStatusChangeAt ?? o.createdAt ?? 0).getTime();
+    // Total desde Feb 1
+    const allOpps = [...byContact.values()].filter(o => ts(o) >= sinceMs);
 
-    // Filtrar por wonAt >= Feb 1
-    const allOpps = [...byContact.values()].filter(o => wonAt(o) >= sinceMs);
-
-    // Filtrar por wonAt >= inicio del mes
-    const thisMonth = allOpps.filter(o => wonAt(o) >= monthStartMs);
+    // Este mes
+    const thisMonth = allOpps.filter(o => ts(o) >= monthStartMs);
 
     const raw = [...rise, ...ncn, ...century];
     const withKey = raw.filter(o => o.contactId ?? o.contact?.id);
