@@ -727,6 +727,7 @@ async function loadGlobals() {
     if (d.ltsMonth   != null) document.getElementById('g-lts-month').textContent     = d.ltsMonth.toLocaleString();
     if (d.monthLabel)         document.getElementById('g-lts-month-label').textContent = d.monthLabel;
     if (d.leadsInSeq != null) document.getElementById('g-leads').textContent         = d.leadsInSeq.toLocaleString();
+    if (d.smsTotal   != null) document.getElementById('g-blasted').textContent       = d.smsTotal.toLocaleString();
   } catch(e) {}
 }
 
