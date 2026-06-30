@@ -28,17 +28,28 @@ function hdrs() {
   };
 }
 
-async function fetchSafe(url, opts, timeoutMs = 10000) {
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
-  } catch (e) {
-    if (e.name === 'AbortError') throw new Error(`Timeout: ${url}`);
-    throw e;
-  } finally {
-    clearTimeout(timer);
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchSafe(url, opts, timeoutMs = 10000, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, { ...opts, signal: ctrl.signal });
+      if (r.status === 429) {
+        const wait = parseInt(r.headers.get('Retry-After') ?? '5') * 1000;
+        await sleep(wait || 5000);
+        continue;
+      }
+      return r;
+    } catch (e) {
+      if (e.name === 'AbortError' && i === retries - 1) throw new Error(`Timeout: ${url}`);
+      if (i < retries - 1) await sleep(1500 * (i + 1));
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw new Error(`fetchSafe failed after ${retries} retries: ${url}`);
 }
 
 async function fetchAllOpps(pipelineId, params = {}) {
