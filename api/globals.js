@@ -101,6 +101,7 @@ export default async function handler(req, res) {
     const sinceMs       = new Date(SINCE).getTime();
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
     const todayStr      = now.toISOString().slice(0, 10);
+    const tomorrowStr   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString().slice(0, 10);
 
     const sinceISO      = new Date(SINCE).toISOString();
     const monthStartISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -115,7 +116,7 @@ export default async function handler(req, res) {
       fetchAllOpps(PIPELINES[2].id, { status: 'won' }),
       fetchSmsTotal(monthStartStr, todayStr),
       fetchSmsTotal(SINCE, todayStr),
-      fetchSmsTotal(todayStr, todayStr),
+      fetchSmsTotal(todayStr, tomorrowStr),
       fetchCallsFromSupabase(sinceISO, nowISO),
       fetchCallsFromSupabase(monthStartISO, nowISO),
       fetchFromSupabase('optout_events', 'ts', monthStartISO, nowISO),
