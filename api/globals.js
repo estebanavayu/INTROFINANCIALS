@@ -7,7 +7,9 @@ const SB_KEY = process.env.IF_SUPABASE_KEY;
 
 async function fetchFromSupabase(table, tsField, startISO, endISO) {
   if (!SB_URL || !SB_KEY) return null;
-  const params = new URLSearchParams({ select: 'id', [tsField]: `gte.${startISO}`, [`${tsField}.lte`]: endISO });
+  const params = new URLSearchParams({ select: 'contact_id' });
+  params.append(tsField, `gte.${startISO}`);
+  params.append(tsField, `lte.${endISO}`);
   const r = await fetch(
     `${SB_URL}/rest/v1/${table}?${params}`,
     { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
