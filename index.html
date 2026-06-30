@@ -502,6 +502,11 @@
         </div>
         <div class="funnel-rows">
           <div class="funnel-row">
+            <span class="funnel-row-label">Leads en secuencia (activos)</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right;color:var(--accent)" id="mca-leads-active">—</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right;font-size:11px;color:var(--muted)">en este momento</span>
+          </div>
+          <div class="funnel-row">
             <span class="funnel-row-label">Mensajes blasteados</span>
             <span class="funnel-row-value" style="min-width:100px;text-align:right" id="mca-blasted">—</span>
             <span class="funnel-row-value" style="min-width:100px;text-align:right;color:var(--muted);font-size:13px" id="mca-blasted-month">—</span>
@@ -769,6 +774,9 @@ async function loadMca() {
     const pct = (n) => n != null ? (n * 100).toFixed(2) + '%' : '—%';
 
     if (d.monthLabel) document.getElementById('mca-month-col').textContent = d.monthLabel.toUpperCase();
+
+    // Leads en secuencia
+    document.getElementById('mca-leads-active').textContent = fmt(d.leadsActive);
 
     // Columna total
     document.getElementById('mca-blasted').textContent  = fmt(d.smsTotal);

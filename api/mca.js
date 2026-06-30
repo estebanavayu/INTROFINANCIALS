@@ -10,6 +10,15 @@ const MCA_PIPELINES = [
   'tzoH6Bv4qfC4Rug8yZvQ', // NCN OPENING
 ];
 
+// Nombres exactos de los workflows MCA en GHL
+const MCA_WORKFLOW_NAMES = new Set([
+  'MARIA V2 - BULK FUP COLD BLAST',
+  'CAMILA V2 - BULK FUP COLD BLAST',
+  'PROVISORIO Y LA CTM - FIXED NUMBERS',
+  'PROVISORIO test botón recuperar lead de sara',
+  'PARTNER SEQUENCE - Defaults & Declined',
+]);
+
 function hdrs() {
   return {
     'Authorization': `Bearer ${process.env.GHL_TOKEN}`,
@@ -93,6 +102,39 @@ async function fetchCallsFromSupabase(startISO, endISO) {
   } catch { return null; }
 }
 
+// Cuenta contactos ACTIVE en los workflows MCA
+async function fetchLeadsEnSecuencia() {
+  try {
+    const res  = await fetchSafe(`${GHL_V2}/workflows/?locationId=${GHL_LOC}`, { headers: hdrs() });
+    const data = await res.json().catch(() => ({}));
+    const workflows = data.workflows ?? [];
+
+    // Filtrar solo los MCA por nombre exacto
+    const mcaWfs = workflows.filter(w => MCA_WORKFLOW_NAMES.has(w.name));
+
+    // Para cada workflow, contar contactos con status=active
+    // GHL: GET /contacts/search con workflowId + workflowStatus no existe directamente,
+    // pero sí podemos paginar /contacts/?workflowId=X&workflowStatus=active
+    let total = 0;
+    for (const wf of mcaWfs) {
+      let page = 1;
+      while (true) {
+        const qs  = new URLSearchParams({ locationId: GHL_LOC, workflowId: wf.id, workflowStatus: 'active', limit: 100, page });
+        const r   = await fetchSafe(`${GHL_V2}/contacts/?${qs}`, { headers: hdrs() });
+        const d   = await r.json().catch(() => ({}));
+        const contacts = d.contacts ?? [];
+        total += contacts.length;
+        if (contacts.length < 100) break;
+        page++;
+      }
+    }
+    return total;
+  } catch (e) {
+    console.error('fetchLeadsEnSecuencia:', e.message);
+    return null;
+  }
+}
+
 // Busca stages con "no show" en el nombre dentro de los pipelines MCA
 async function fetchNoShowCount() {
   try {
@@ -142,8 +184,8 @@ export default async function handler(req, res) {
 
     const safe = (p) => Promise.resolve(p).catch(() => null);
 
-    // Fetch all in parallel (LTs + SMS + calls + no shows)
-    const [wonRise, wonNcn, smsMonth, smsTotal, smsToday, callsTotal, callsMonth, noShows] = await Promise.all([
+    // Fetch all in parallel (LTs + SMS + calls + no shows + leads en secuencia)
+    const [wonRise, wonNcn, smsMonth, smsTotal, smsToday, callsTotal, callsMonth, noShows, leadsActive] = await Promise.all([
       safe(fetchAllOpps(MCA_PIPELINES[0], { status: 'won' })),
       safe(fetchAllOpps(MCA_PIPELINES[1], { status: 'won' })),
       safe(fetchSmsTotal(monthStartStr, todayStr)),
@@ -152,6 +194,7 @@ export default async function handler(req, res) {
       safe(fetchCallsFromSupabase(sinceISO, nowISO)),
       safe(fetchCallsFromSupabase(monthStartISO, nowISO)),
       safe(fetchNoShowCount()),
+      safe(fetchLeadsEnSecuencia()),
     ]);
 
     // Dedup + filter by wonAt
@@ -165,6 +208,8 @@ export default async function handler(req, res) {
 
     res.json({
       since: SINCE,
+      // Leads en secuencia (activos en workflows MCA)
+      leadsActive,
       // LTs
       ltsTotal, ltsMonth,
       // SMS (blasteados)
