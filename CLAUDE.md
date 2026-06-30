@@ -1,4 +1,4 @@
-# Intro Financials Dashboard — Documentación Técnica
+# Intro Analytics Dashboard — Documentación Técnica
 
 > **Última actualización:** 2026-06-30
 > Dashboard de métricas operacionales de Intro (openers). Vercel + Supabase + GHL.
