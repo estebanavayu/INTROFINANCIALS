@@ -102,29 +102,46 @@ async function fetchCallsFromSupabase(startISO, endISO) {
   } catch { return null; }
 }
 
-// Cuenta contactos ACTIVE en los workflows MCA
+// Cuenta contactos ACTIVE en los workflows MCA via POST /contacts/search
 async function fetchLeadsEnSecuencia() {
   try {
     const res  = await fetchSafe(`${GHL_V2}/workflows/?locationId=${GHL_LOC}`, { headers: hdrs() });
     const data = await res.json().catch(() => ({}));
     const workflows = data.workflows ?? [];
-
-    // Filtrar solo los MCA por nombre exacto
     const mcaWfs = workflows.filter(w => MCA_WORKFLOW_NAMES.has(w.name));
 
-    // Para cada workflow, contar contactos con status=active
-    // GHL: GET /contacts/search con workflowId + workflowStatus no existe directamente,
-    // pero sí podemos paginar /contacts/?workflowId=X&workflowStatus=active
+    if (!mcaWfs.length) {
+      console.error('fetchLeadsEnSecuencia: no se encontraron workflows MCA. Nombres disponibles:', workflows.map(w => w.name));
+      return null;
+    }
+
     let total = 0;
     for (const wf of mcaWfs) {
       let page = 1;
       while (true) {
-        const qs  = new URLSearchParams({ locationId: GHL_LOC, workflowId: wf.id, workflowStatus: 'active', limit: 100, page });
-        const r   = await fetchSafe(`${GHL_V2}/contacts/?${qs}`, { headers: hdrs() });
-        const d   = await r.json().catch(() => ({}));
-        const contacts = d.contacts ?? [];
+        const body = {
+          locationId: GHL_LOC,
+          page,
+          pageLimit: 100,
+          filters: [{
+            group: 'AND',
+            filters: [
+              { field: 'workflowId',     operator: 'workflow_is',        value: wf.id },
+              { field: 'workflowStatus', operator: 'workflow_is_active', value: 'active' },
+            ],
+          }],
+        };
+        const r = await fetchSafe(`${GHL_V2}/contacts/search`, {
+          method:  'POST',
+          headers: { ...hdrs(), 'Content-Type': 'application/json' },
+          body:    JSON.stringify(body),
+        });
+        const d = await r.json().catch(() => ({}));
+        console.log(`WF "${wf.name}" p${page}: status=${r.status} contacts=${(d.contacts ?? d.data ?? []).length} total=${d.total ?? d.meta?.total ?? '?'}`);
+        const contacts = d.contacts ?? d.data ?? [];
         total += contacts.length;
-        if (contacts.length < 100) break;
+        const totalExpected = d.total ?? d.meta?.total ?? 0;
+        if (contacts.length < 100 || total >= totalExpected) break;
         page++;
       }
     }
