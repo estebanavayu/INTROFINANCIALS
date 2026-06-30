@@ -1,0 +1,20 @@
+name: Delete CSV Records
+on:
+  workflow_dispatch:
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete csv_* records from call_records
+        run: |
+          node -e "
+          const SB_URL = process.env.IF_SUPABASE_URL;
+          const SB_KEY = process.env.IF_SUPABASE_KEY;
+          fetch(SB_URL + '/rest/v1/call_records?id=like.csv_%25', {
+            method: 'DELETE',
+            headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, Prefer: 'return=minimal,count=exact' }
+          }).then(r => { console.log('Status:', r.status); console.log('Deleted:', r.headers.get('content-range')); }).catch(e => { console.error(e); process.exit(1); });
+          "
+        env:
+          IF_SUPABASE_URL: ${{ secrets.IF_SUPABASE_URL }}
+          IF_SUPABASE_KEY: ${{ secrets.IF_SUPABASE_KEY }}
