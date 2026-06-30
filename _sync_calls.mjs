@@ -110,4 +110,45 @@ async function main() {
   console.log(`Sync completo. Total procesadas: ${processed} | llamadas guardadas: ${inserted}`);
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+// ── Sync opt-outs (DND SMS enabled) ──────────────────────────────────────────
+
+async function syncOptOuts() {
+  console.log('Sync opt-outs DND...');
+  let page = 1, total = 0;
+
+  while (true) {
+    const qs = new URLSearchParams({
+      locationId: GHL_LOC,
+      dndActive: 'SMS',
+      limit: 100,
+      page,
+    });
+    const r = await fetch(`${GHL_URL}/contacts/?${qs}`, { headers: GHL_HDR });
+    const d = await r.json().catch(() => ({}));
+    const contacts = d.contacts ?? [];
+    if (!contacts.length) break;
+
+    const records = contacts
+      .filter(c => c.id && c.lastActivity)
+      .map(c => ({ contact_id: c.id, ts: new Date(c.lastActivity).toISOString() }));
+
+    if (records.length) {
+      await fetch(`${SB_URL}/rest/v1/optout_events`, {
+        method: 'POST',
+        headers: { ...SB_HDR, Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify(records),
+      });
+      total += records.length;
+    }
+
+    if (contacts.length < 100) break;
+    page++;
+    await sleep(300);
+  }
+
+  console.log(`Opt-outs sincronizados: ${total}`);
+}
+
+main()
+  .then(() => syncOptOuts())
+  .catch(e => { console.error(e); process.exit(1); });
