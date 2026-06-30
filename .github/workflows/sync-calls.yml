@@ -2,7 +2,8 @@ name: Sync Call Records
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # 6 AM UTC = 2 AM Chile (fuera de horario de llamadas)
+    - cron: '0 6 * * *'    # 6 AM UTC = 2 AM Chile
+    - cron: '0 17 * * *'   # 17 PM UTC = 1 PM Chile
   workflow_dispatch:
 
 jobs:
