@@ -20,19 +20,25 @@ async function fetchFromSupabase(table, tsField, startISO, endISO) {
 
 async function fetchCallsFromSupabase(startISO, endISO) {
   if (!SB_URL || !SB_KEY) return null;
-  const params = new URLSearchParams({
-    select: 'id',
-    direction: 'eq.outbound',
-    status: 'eq.completed',
-    date_added: `gte.${startISO}`,
-    'date_added.lte': endISO,
-  });
-  // Filtro duration > 30 via header
-  const r = await fetch(
-    `${SB_URL}/rest/v1/call_records?${params}&duration=gte.30`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
-  );
-  const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
+  // Contar outbound + inbound con status=completed y duration>=30
+  // Se hace en dos queries porque PostgREST no soporta OR en filtros directamente
+  const hdr = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' };
+  const base = `${SB_URL}/rest/v1/call_records`;
+
+  const buildParams = (dir) => {
+    const p = new URLSearchParams({ select: 'id', direction: `eq.${dir}`, status: 'eq.completed', duration: 'gte.30' });
+    p.append('date_added', `gte.${startISO}`);
+    p.append('date_added', `lte.${endISO}`);
+    return p;
+  };
+
+  const [rOut, rIn] = await Promise.all([
+    fetch(`${base}?${buildParams('outbound')}`, { headers: hdr }),
+    fetch(`${base}?${buildParams('inbound')}`,  { headers: hdr }),
+  ]);
+
+  const parse = (r) => parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
+  const total = parse(rOut) + parse(rIn);
   return isNaN(total) ? null : total;
 }
 
