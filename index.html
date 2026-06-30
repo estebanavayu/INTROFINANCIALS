@@ -794,13 +794,38 @@ async function loadMca() {
   } catch(e) { console.error('loadMca:', e); }
 }
 
+async function loadMcaReps() {
+  try {
+    const r = await fetch('/api/mca-reps');
+    const d = await r.json();
+
+    const fmt = (n) => n != null ? n.toLocaleString('es-CL') : '—';
+    const pct = (n) => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+
+    for (const [prefix, key] of [['cam', 'camila'], ['mar', 'maria'], ['sar', 'sara']]) {
+      const rep = d[key] ?? {};
+      document.getElementById(`${prefix}-mca-lts`).textContent   = fmt(rep.ltsTotal);
+      document.getElementById(`${prefix}-mca-calls`).textContent = fmt(rep.callsTotal);
+      document.getElementById(`${prefix}-mca-sms`).textContent   = '—%';
+      document.getElementById(`${prefix}-mca-lt`).textContent    = pct(rep.rateCallLt);
+      // Call breakdown — solo dirección disponible por ahora
+      document.getElementById(`${prefix}-mca-callnow`).textContent  = '—%';
+      document.getElementById(`${prefix}-mca-sched`).textContent    = '—%';
+      document.getElementById(`${prefix}-mca-cold`).textContent     = '—%';
+      document.getElementById(`${prefix}-mca-inbound`).textContent  = '—%';
+    }
+  } catch(e) { console.error('loadMcaReps:', e); }
+}
+
 // ── Init ─────────────────────────────────────────────────────
 loadMsgStats();
 loadGlobals();
 loadMca();
-setInterval(loadMsgStats, 5 * 60 * 1000);
-setInterval(loadGlobals,  5 * 60 * 1000);
-setInterval(loadMca,      5 * 60 * 1000);
+loadMcaReps();
+setInterval(loadMsgStats,  5 * 60 * 1000);
+setInterval(loadGlobals,   5 * 60 * 1000);
+setInterval(loadMca,       5 * 60 * 1000);
+setInterval(loadMcaReps,  10 * 60 * 1000);
 </script>
 
 </body>
