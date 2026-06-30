@@ -722,11 +722,42 @@ async function loadGlobals() {
   } catch(e) {}
 }
 
+// ── MCA Funnel ───────────────────────────────────────────────
+async function loadMca() {
+  try {
+    const r = await fetch('/api/mca');
+    const d = await r.json();
+
+    const fmt  = (n) => n != null ? n.toLocaleString('es-CL') : '—';
+    const pct  = (n) => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+
+    // Funnel rows
+    document.getElementById('mca-blasted').textContent     = fmt(d.smsTotal);
+    document.getElementById('mca-calls').textContent       = fmt(d.callsTotal);
+    document.getElementById('mca-lts').textContent         = fmt(d.ltsTotal);
+    document.getElementById('mca-noshows').textContent     = fmt(d.noShows);
+
+    // Porcentajes junto a cada fila
+    document.getElementById('mca-sms-call-pct').textContent  = pct(d.rateSmsCall);
+    document.getElementById('mca-call-lt-pct').textContent   = pct(d.rateCallLt);
+    if (d.noShows != null && d.ltsTotal > 0) {
+      document.getElementById('mca-noshow-pct').textContent  = (d.noShows / d.ltsTotal * 100).toFixed(1) + '%';
+    }
+
+    // Tasas en el footer del card
+    document.getElementById('mca-rate-sms').textContent = pct(d.rateSmsCall);
+    document.getElementById('mca-rate-lt').textContent  = pct(d.rateCallLt);
+
+  } catch(e) { console.error('loadMca:', e); }
+}
+
 // ── Init ─────────────────────────────────────────────────────
 loadMsgStats();
 loadGlobals();
+loadMca();
 setInterval(loadMsgStats, 5 * 60 * 1000);
 setInterval(loadGlobals,  5 * 60 * 1000);
+setInterval(loadMca,      5 * 60 * 1000);
 </script>
 
 </body>
