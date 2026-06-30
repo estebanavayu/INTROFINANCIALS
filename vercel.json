@@ -4,6 +4,7 @@
   ],
   "functions": {
     "api/backfill.js": { "maxDuration": 300 },
-    "api/globals.js":  { "maxDuration": 60 }
+    "api/globals.js":     { "maxDuration": 60 },
+    "api/lt-history.js":  { "maxDuration": 60 }
   }
 }

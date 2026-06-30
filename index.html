@@ -776,12 +776,15 @@ async function loadGlobals() {
 }
 
 async function loadLtHistory() {
+  const skel = document.getElementById('lt-chart-skeleton');
+  if (skel) skel.textContent = 'Consultando GHL…';
   try {
     const r = await fetch('/api/lt-history');
-    if (!r.ok) return;
+    if (!r.ok) { if (skel) skel.textContent = 'Error al cargar.'; return; }
     const d = await r.json();
     if (d.ltsByMonth) renderLtChart(d.ltsByMonth);
-  } catch(e) {}
+    else if (skel) skel.textContent = 'Sin datos.';
+  } catch(e) { if (skel) skel.textContent = 'Error al cargar.'; }
 }
 
 function renderLtChart(ltsByMonth) {
