@@ -176,13 +176,8 @@ function sanityOk(newVal, oldVal, label) {
 
 // ── Computaciones ────────────────────────────────────────────
 
-async function computeGlobals(D) {
-  console.log('\n[globals] Fetching won opps...');
-  const allWon = [];
-  for (const pid of PIPELINES_ALL) {
-    allWon.push(...await fetchWonOpps(pid));
-    await sleep(500);
-  }
+async function computeGlobals(D, wonOppsByPipeline) {
+  const allWon  = PIPELINES_ALL.flatMap(pid => wonOppsByPipeline[pid] ?? []);
   const deduped = dedupByContact(allWon);
   let ltsTotal = 0, ltsMonth = 0;
   const ltsByMonth = {};
@@ -220,13 +215,8 @@ async function computeGlobals(D) {
   };
 }
 
-async function computeMca(D) {
-  console.log('\n[mca] Fetching won opps...');
-  const allWon = [];
-  for (const pid of MCA_PIPELINES) {
-    allWon.push(...await fetchWonOpps(pid));
-    await sleep(500);
-  }
+async function computeMca(D, wonOppsByPipeline) {
+  const allWon  = MCA_PIPELINES.flatMap(pid => wonOppsByPipeline[pid] ?? []);
   const deduped = dedupByContact(allWon);
   let ltsTotal = 0, ltsMonth = 0;
   for (const o of deduped) {
@@ -354,13 +344,8 @@ async function countRepCallNow(repId, fieldId) {
   } catch { return null; }
 }
 
-async function computeMcaReps(D) {
-  console.log('\n[mca_reps] Fetching all opps...');
-  const allOpps = [];
-  for (const pid of MCA_PIPELINES) {
-    allOpps.push(...await fetchAllOpps(pid));
-    await sleep(500);
-  }
+async function computeMcaReps(D, allOppsByPipeline) {
+  const allOpps = MCA_PIPELINES.flatMap(pid => allOppsByPipeline[pid] ?? []);
 
   const ids   = { camila: new Set(), maria: new Set(), sara: new Set() };
   const ltTot = { camila: 0, maria: 0, sara: 0 };
@@ -448,29 +433,44 @@ async function main() {
 
   let exitCode = 0;
 
+  // ── Fetch único de opps (compartido entre globals/mca/mca_reps) ──
+  console.log('\n[fetch] Fetching won opps por pipeline (fetch único)...');
+  const wonOppsByPipeline = {};
+  for (const pid of PIPELINES_ALL) {
+    wonOppsByPipeline[pid] = await fetchWonOpps(pid);
+    await sleep(800);
+  }
+
+  console.log('\n[fetch] Fetching ALL opps para rep contact IDs...');
+  const allOppsByPipeline = {};
+  for (const pid of MCA_PIPELINES) {
+    allOppsByPipeline[pid] = await fetchAllOpps(pid);
+    await sleep(800);
+  }
+
   // ── Globals ──
   try {
-    const g    = await computeGlobals(D);
+    const g    = await computeGlobals(D, wonOppsByPipeline);
     const prev = await readCache('metrics_globals');
     if (!sanityOk(g.lts, prev?.value?.lts, 'globals.lts')) { exitCode = 1; }
     else await writeCache('metrics_globals', g);
   } catch (e) { console.error('[globals] ERROR:', e.message); exitCode = 1; }
 
-  await sleep(800);
+  await sleep(600);
 
   // ── MCA ──
   try {
-    const m    = await computeMca(D);
+    const m    = await computeMca(D, wonOppsByPipeline);
     const prev = await readCache('metrics_mca');
     if (!sanityOk(m.ltsTotal, prev?.value?.ltsTotal, 'mca.ltsTotal')) { exitCode = 1; }
     else await writeCache('metrics_mca', m);
   } catch (e) { console.error('[mca] ERROR:', e.message); exitCode = 1; }
 
-  await sleep(800);
+  await sleep(600);
 
   // ── MCA Reps ──
   try {
-    const r = await computeMcaReps(D);
+    const r = await computeMcaReps(D, allOppsByPipeline);
     await writeCache('metrics_mca_reps', r);
   } catch (e) { console.error('[mca_reps] ERROR:', e.message); exitCode = 1; }
 
