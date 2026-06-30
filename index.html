@@ -716,8 +716,8 @@ async function loadGlobals() {
     if (d.optoutRateMonth != null && d.smsMonth) {
       applyOptOutCard('g-optout-month', 'g-optout-month-sub', 'card-optout-month', d.optoutRateMonth, d.optoutMonth, d.smsMonth, d.monthLabel ?? 'mes');
     }
-    if (d.optoutToday != null && d.smsMonth) {
-      applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today', d.optoutToday / (d.smsMonth / 30), d.optoutToday, 0, 'hoy');
+    if (d.optoutRateToday != null) {
+      applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today', d.optoutRateToday, d.optoutToday, d.smsToday, 'hoy');
     }
   } catch(e) {}
 }

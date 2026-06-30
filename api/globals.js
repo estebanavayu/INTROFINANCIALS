@@ -103,12 +103,13 @@ export default async function handler(req, res) {
     const todayStartISO = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
     // Todo en paralelo — GHL + Supabase
-    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal, callsTotal, callsMonth, optoutMonth, optoutToday] = await Promise.all([
+    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal, smsToday, callsTotal, callsMonth, optoutMonth, optoutToday] = await Promise.all([
       fetchAllOpps(PIPELINES[0].id, { status: 'won' }),
       fetchAllOpps(PIPELINES[1].id, { status: 'won' }),
       fetchAllOpps(PIPELINES[2].id, { status: 'won' }),
       fetchSmsTotal(monthStartStr, todayStr),
       fetchSmsTotal(SINCE, todayStr),
+      fetchSmsTotal(todayStr, todayStr),
       fetchCallsFromSupabase(sinceISO, nowISO),
       fetchCallsFromSupabase(monthStartISO, nowISO),
       fetchFromSupabase('optout_events', 'ts', monthStartISO, nowISO),
@@ -127,16 +128,16 @@ export default async function handler(req, res) {
     }
 
     const optoutRateMonth = smsMonth && optoutMonth ? optoutMonth / smsMonth : null;
-    const optoutRateToday = optoutToday != null ? optoutToday : null;
+    const optoutRateToday = smsToday && optoutToday ? optoutToday / smsToday : null;
 
     res.json({
       since: SINCE,
       lts: ltsTotal, ltsMonth,
       calls: callsTotal, callsMonth,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
-      smsMonth, smsTotal,
+      smsMonth, smsTotal, smsToday,
       optoutMonth, optoutToday,
-      optoutRateMonth,
+      optoutRateMonth, optoutRateToday,
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
