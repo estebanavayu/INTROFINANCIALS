@@ -53,21 +53,6 @@ async function fetchAllOpps(pipelineId, params = {}) {
   return all;
 }
 
-async function fetchContactDates(contactIds) {
-  const map = new Map();
-  const BATCH = 200;
-  for (let i = 0; i < contactIds.length; i += BATCH) {
-    const batch = contactIds.slice(i, i + BATCH);
-    const body  = JSON.stringify({ locationId: GHL_LOC, filters: [{ field: 'id', operator: 'contains_set', value: batch }], pageLimit: BATCH });
-    const res   = await fetch(`${GHL_V2}/contacts/search`, { method: 'POST', headers: hdrs(), body });
-    const data  = await res.json().catch(() => ({}));
-    for (const c of (data.contacts ?? [])) {
-      if (c.id && c.dateAdded) map.set(c.id, new Date(c.dateAdded).getTime());
-    }
-  }
-  return map;
-}
-
 
 async function fetchSmsTotal(startDate, endDate) {
   const url = `${GHL_V2}/conversations/messages/export?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
@@ -116,15 +101,12 @@ export default async function handler(req, res) {
     // Dedup contactIds por wonAt más reciente
     const wonMap = dedupByContact([...wonRise, ...wonNcn, ...wonCentury]);
 
-    // Batch lookup fechas de contacto
-    const contactDates = await fetchContactDates([...wonMap.keys()]);
-
-    // Contar LTs por contact.dateAdded
+    // Contar LTs por lastStageChangeAt (wonAt)
     let ltsTotal = 0, ltsMonth = 0;
-    for (const id of wonMap.keys()) {
-      const t = contactDates.get(id) ?? 0;
-      if (t >= sinceMs)      ltsTotal++;
-      if (t >= monthStartMs) ltsMonth++;
+    for (const o of wonMap.values()) {
+      const wonAt = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
+      if (wonAt >= sinceMs)      ltsTotal++;
+      if (wonAt >= monthStartMs) ltsMonth++;
     }
 
     res.json({
