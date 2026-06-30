@@ -89,7 +89,9 @@ async function main() {
   let page = 1, processed = 0, inserted = 0, stopped = false;
 
   while (!stopped) {
-    const url = `${GHL_URL}/conversations/search?locationId=${GHL_LOC}&lastMessageType=TYPE_CALL&limit=100&page=${page}`;
+    // Sin filtro lastMessageType: captura todas las convs con actividad reciente
+    // (filtrar por TYPE_CALL dentro de fetchConvMessages)
+    const url = `${GHL_URL}/conversations/search?locationId=${GHL_LOC}&limit=100&page=${page}`;
     const r   = await fetchWithRetry(url, { headers: GHL_HDR });
     const d   = await r.json().catch(() => ({}));
     const convs = d.conversations ?? [];

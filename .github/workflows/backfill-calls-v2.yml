@@ -1,0 +1,14 @@
+name: Backfill Calls V2
+on:
+  workflow_dispatch:
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - run: node _backfill_calls_v2.mjs
+        env:
+          GHL_TOKEN: ${{ secrets.GHL_TOKEN_IF }}
+          IF_SUPABASE_URL: ${{ secrets.IF_SUPABASE_URL }}
+          IF_SUPABASE_KEY: ${{ secrets.IF_SUPABASE_KEY }}
