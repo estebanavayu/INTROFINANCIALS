@@ -2,7 +2,7 @@ name: Sync Metrics Cache
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # cada 30 min
+    - cron: '7,37 * * * *'   # cada 30 min offset 7min (evita pisar */15 dashboard principal)
   workflow_dispatch:           # disparar manualmente si se necesita
 
 jobs:

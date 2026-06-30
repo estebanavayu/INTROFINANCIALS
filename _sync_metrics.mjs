@@ -36,16 +36,17 @@ const REPS = {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function ghlFetch(url, retries = 4) {
+async function ghlFetch(url, retries = 10) {
   for (let i = 0; i < retries; i++) {
     const r = await fetch(url, { headers: GHL_HDR });
     if (r.status === 429) {
-      const wait = parseInt(r.headers.get('Retry-After') ?? '10') * 1000;
-      console.warn(`  429 rate limit, esperando ${wait}ms`);
-      await sleep(wait || 10000);
+      const retryAfter = parseInt(r.headers.get('Retry-After') ?? '10', 10);
+      const wait = Math.max(retryAfter * 1000, 10000) * (1 + i * 0.5); // backoff creciente
+      console.warn(`  429 rate limit (intento ${i+1}/${retries}), esperando ${Math.round(wait/1000)}s`);
+      await sleep(wait);
       continue;
     }
-    if (r.status >= 500) { await sleep(2000 * (i + 1)); continue; }
+    if (r.status >= 500) { await sleep(3000 * (i + 1)); continue; }
     return r;
   }
   throw new Error(`ghlFetch agotó reintentos: ${url}`);
