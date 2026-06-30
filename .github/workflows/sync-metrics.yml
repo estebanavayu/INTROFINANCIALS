@@ -1,0 +1,25 @@
+name: Sync Metrics Cache
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # cada 30 min
+  workflow_dispatch:           # disparar manualmente si se necesita
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Sync metrics → Supabase cache
+        env:
+          GHL_TOKEN_IF:    ${{ secrets.GHL_TOKEN_IF }}
+          IF_SUPABASE_URL: ${{ secrets.IF_SUPABASE_URL }}
+          IF_SUPABASE_KEY: ${{ secrets.IF_SUPABASE_KEY }}
+        run: node _sync_metrics.mjs

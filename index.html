@@ -383,6 +383,16 @@
   .subsection { display: none; }
   .subsection.active { display: block; }
 
+  /* ── Period toggle (mes / acumulado) ── */
+  .period-toggle { display:flex; gap:6px; margin-bottom:16px; }
+  .period-btn {
+    padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-size: 11px;
+    font-weight: 600; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  .period-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
   /* ── Opt-out pill ── */
   .opt-out-pill {
     display: inline-flex;
@@ -550,6 +560,10 @@
 
     <!-- SUB: REPS MCA -->
     <div class="subsection" id="subtab-mca-reps">
+      <div class="period-toggle">
+        <button class="period-btn active" id="mca-rep-btn-month" onclick="setMcaRepPeriod('month')">Este mes</button>
+        <button class="period-btn" id="mca-rep-btn-total" onclick="setMcaRepPeriod('total')">Acumulado</button>
+      </div>
       <div class="rep-section">
         <div class="rep-section-header"><div class="rep-avatar">C</div><div><div class="rep-name">Camila</div><div style="font-size:11px;color:var(--muted)">Opener</div></div></div>
         <div class="rep-metrics">
@@ -557,12 +571,6 @@
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="cam-mca-calls">—</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="cam-mca-lt">—%</div></div>
         </div>
-        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Camila</div><div class="call-types">
-          <div class="call-type"><div class="ct-pct" id="cam-mca-callnow">—%</div><div class="ct-label">Call Now</div></div>
-          <div class="call-type"><div class="ct-pct" id="cam-mca-sched">—%</div><div class="ct-label">Scheduled</div></div>
-          <div class="call-type"><div class="ct-pct" id="cam-mca-cold">—%</div><div class="ct-label">Cold Call</div></div>
-          <div class="call-type"><div class="ct-pct" id="cam-mca-inbound">—%</div><div class="ct-label">Inbound</div></div>
-        </div></div>
       </div>
       <hr class="divider" />
       <div class="rep-section">
@@ -572,12 +580,6 @@
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="mar-mca-calls">—</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="mar-mca-lt">—%</div></div>
         </div>
-        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Maria</div><div class="call-types">
-          <div class="call-type"><div class="ct-pct" id="mar-mca-callnow">—%</div><div class="ct-label">Call Now</div></div>
-          <div class="call-type"><div class="ct-pct" id="mar-mca-sched">—%</div><div class="ct-label">Scheduled</div></div>
-          <div class="call-type"><div class="ct-pct" id="mar-mca-cold">—%</div><div class="ct-label">Cold Call</div></div>
-          <div class="call-type"><div class="ct-pct" id="mar-mca-inbound">—%</div><div class="ct-label">Inbound</div></div>
-        </div></div>
       </div>
       <hr class="divider" />
       <div class="rep-section">
@@ -587,12 +589,6 @@
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="sar-mca-calls">—</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="sar-mca-lt">—%</div></div>
         </div>
-        <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Sara</div><div class="call-types">
-          <div class="call-type"><div class="ct-pct" id="sar-mca-callnow">—%</div><div class="ct-label">Call Now</div></div>
-          <div class="call-type"><div class="ct-pct" id="sar-mca-sched">—%</div><div class="ct-label">Scheduled</div></div>
-          <div class="call-type"><div class="ct-pct" id="sar-mca-cold">—%</div><div class="ct-label">Cold Call</div></div>
-          <div class="call-type"><div class="ct-pct" id="sar-mca-inbound">—%</div><div class="ct-label">Inbound</div></div>
-        </div></div>
       </div>
     </div>
   </div>
@@ -730,29 +726,38 @@ async function loadMsgStats() {
 }
 
 // ── Globals (LTs, leads en secuencia, blasteados) ────────────
+function setCacheFooter(cache) {
+  const el = document.getElementById('last-updated-footer');
+  if (!el || !cache) return;
+  const staleWarn = cache.stale ? ' ⚠ datos desactualizados' : '';
+  el.textContent = `Datos actualizados hace ${cache.age_min} min${staleWarn}`;
+  el.style.color = cache.stale ? 'var(--yellow)' : 'var(--muted)';
+}
+
 async function loadGlobals() {
   try {
     const r = await fetch('/api/globals');
+    if (!r.ok) return;
     const d = await r.json();
+    if (d.error) return;
     if (d.monthLabel)         document.getElementById('g-month-col').textContent      = d.monthLabel.toUpperCase();
     if (d.lts        != null) document.getElementById('g-lts').textContent           = d.lts.toLocaleString();
     if (d.ltsMonth   != null) document.getElementById('g-lts-month').textContent     = d.ltsMonth.toLocaleString();
-    if (d.calls      != null) { document.getElementById('g-calls').textContent       = d.calls.toLocaleString(); }
-    if (d.callsMonth != null) { document.getElementById('g-calls-month').textContent = d.callsMonth.toLocaleString(); }
+    if (d.calls      != null) document.getElementById('g-calls').textContent         = d.calls.toLocaleString();
+    if (d.callsMonth != null) document.getElementById('g-calls-month').textContent   = d.callsMonth.toLocaleString();
     if (d.smsTotal   != null) document.getElementById('g-blasted').textContent       = d.smsTotal.toLocaleString();
     if (d.smsMonth   != null) document.getElementById('g-blasted-month').textContent = d.smsMonth.toLocaleString();
-    // Tasas (solo si tenemos ambos datos)
-    if (d.smsTotal && d.calls) document.getElementById('g-sms-call').textContent       = (d.calls/d.smsTotal*100).toFixed(2)+'%';
+    if (d.smsTotal && d.calls)      document.getElementById('g-sms-call').textContent       = (d.calls/d.smsTotal*100).toFixed(2)+'%';
     if (d.smsMonth && d.callsMonth) document.getElementById('g-sms-call-month').textContent = (d.callsMonth/d.smsMonth*100).toFixed(2)+'%';
-    if (d.calls && d.lts) document.getElementById('g-call-lt').textContent             = (d.lts/d.calls*100).toFixed(2)+'%';
-    if (d.callsMonth && d.ltsMonth) document.getElementById('g-call-lt-month').textContent = (d.ltsMonth/d.callsMonth*100).toFixed(2)+'%';
-    // Opt-out rate desde Supabase (webhook)
+    if (d.calls && d.lts)           document.getElementById('g-call-lt').textContent         = (d.lts/d.calls*100).toFixed(2)+'%';
+    if (d.callsMonth && d.ltsMonth) document.getElementById('g-call-lt-month').textContent  = (d.ltsMonth/d.callsMonth*100).toFixed(2)+'%';
     if (d.optoutRateMonth != null && d.smsMonth) {
       applyOptOutCard('g-optout-month', 'g-optout-month-sub', 'card-optout-month', d.optoutRateMonth * 100, d.optoutMonth, d.smsMonth, d.monthLabel ?? 'mes');
     }
     if (d.optoutRateToday != null) {
       applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today', d.optoutRateToday * 100, d.optoutToday, d.smsToday, 'hoy');
     }
+    setCacheFooter(d._cache);
   } catch(e) {}
 }
 
@@ -760,53 +765,57 @@ async function loadGlobals() {
 async function loadMca() {
   try {
     const r = await fetch('/api/mca');
+    if (!r.ok) return;
     const d = await r.json();
+    if (d.error) return;
 
-    const fmt = (n) => n != null ? n.toLocaleString('es-CL') : '—';
-    const pct = (n) => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+    const fmt = n => n != null ? n.toLocaleString('es-CL') : '—';
+    const pct = n => n != null ? (n * 100).toFixed(2) + '%' : '—%';
 
     if (d.monthLabel) document.getElementById('mca-month-col').textContent = d.monthLabel.toUpperCase();
-
-    // Leads en secuencia
-    document.getElementById('mca-leads-active').textContent = fmt(d.leadsActive);
-
-    // Columna total
-    document.getElementById('mca-blasted').textContent  = fmt(d.smsTotal);
-    document.getElementById('mca-calls').textContent    = fmt(d.callsTotal);
-    document.getElementById('mca-lts').textContent      = fmt(d.ltsTotal);
-    document.getElementById('mca-noshows').textContent  = fmt(d.noShows);
-
-    // Columna mes
-    document.getElementById('mca-blasted-month').textContent = fmt(d.smsMonth);
-    document.getElementById('mca-calls-month').textContent   = fmt(d.callsMonth);
-    document.getElementById('mca-lts-month').textContent     = fmt(d.ltsMonth);
-
-    // Tasas en footer (solo acumulado)
-    document.getElementById('mca-rate-sms').textContent = pct(d.rateSmsCall);
-    document.getElementById('mca-rate-lt').textContent  = pct(d.rateCallLt);
-
+    document.getElementById('mca-leads-active').textContent     = fmt(d.leadsActive);
+    document.getElementById('mca-blasted').textContent          = fmt(d.smsTotal);
+    document.getElementById('mca-calls').textContent            = fmt(d.callsTotal);
+    document.getElementById('mca-lts').textContent              = fmt(d.ltsTotal);
+    document.getElementById('mca-noshows').textContent          = fmt(d.noShows);
+    document.getElementById('mca-blasted-month').textContent    = fmt(d.smsMonth);
+    document.getElementById('mca-calls-month').textContent      = fmt(d.callsMonth);
+    document.getElementById('mca-lts-month').textContent        = fmt(d.ltsMonth);
+    document.getElementById('mca-rate-sms').textContent         = pct(d.rateSmsCall);
+    document.getElementById('mca-rate-lt').textContent          = pct(d.rateCallLt);
   } catch(e) { console.error('loadMca:', e); }
+}
+
+let _mcaRepData   = null;
+let _mcaRepPeriod = 'month'; // 'month' | 'total'
+
+function setMcaRepPeriod(period) {
+  _mcaRepPeriod = period;
+  document.getElementById('mca-rep-btn-month').classList.toggle('active', period === 'month');
+  document.getElementById('mca-rep-btn-total').classList.toggle('active', period === 'total');
+  if (_mcaRepData) renderMcaReps(_mcaRepData);
+}
+
+function renderMcaReps(d) {
+  const fmt = n => n != null ? n.toLocaleString('es-CL') : '—';
+  const pct = n => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+  const m   = _mcaRepPeriod === 'month';
+  for (const [prefix, key] of [['cam','camila'],['mar','maria'],['sar','sara']]) {
+    const rep = d[key] ?? {};
+    document.getElementById(`${prefix}-mca-lts`).textContent   = fmt(m ? rep.ltsMonth   : rep.ltsTotal);
+    document.getElementById(`${prefix}-mca-calls`).textContent = fmt(m ? rep.callsMonth : rep.callsTotal);
+    document.getElementById(`${prefix}-mca-lt`).textContent    = pct(m ? rep.rateCallLtMonth : rep.rateCallLt);
+  }
 }
 
 async function loadMcaReps() {
   try {
     const r = await fetch('/api/mca-reps');
+    if (!r.ok) return;
     const d = await r.json();
-
-    const fmt = (n) => n != null ? n.toLocaleString('es-CL') : '—';
-    const pct = (n) => n != null ? (n * 100).toFixed(2) + '%' : '—%';
-
-    for (const [prefix, key] of [['cam', 'camila'], ['mar', 'maria'], ['sar', 'sara']]) {
-      const rep = d[key] ?? {};
-      document.getElementById(`${prefix}-mca-lts`).textContent   = fmt(rep.ltsTotal);
-      document.getElementById(`${prefix}-mca-calls`).textContent = fmt(rep.callsTotal);
-      document.getElementById(`${prefix}-mca-lt`).textContent    = pct(rep.rateCallLt);
-      // Call breakdown — solo dirección disponible por ahora
-      document.getElementById(`${prefix}-mca-callnow`).textContent  = '—%';
-      document.getElementById(`${prefix}-mca-sched`).textContent    = '—%';
-      document.getElementById(`${prefix}-mca-cold`).textContent     = '—%';
-      document.getElementById(`${prefix}-mca-inbound`).textContent  = '—%';
-    }
+    if (d.error) return;
+    _mcaRepData = d;
+    renderMcaReps(d);
   } catch(e) { console.error('loadMcaReps:', e); }
 }
 
