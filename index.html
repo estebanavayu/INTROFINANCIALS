@@ -555,7 +555,6 @@
         <div class="rep-metrics">
           <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="cam-mca-lts">—</div></div>
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="cam-mca-calls">—</div></div>
-          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="cam-mca-sms">—%</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="cam-mca-lt">—%</div></div>
         </div>
         <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Camila</div><div class="call-types">
@@ -571,7 +570,6 @@
         <div class="rep-metrics">
           <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="mar-mca-lts">—</div></div>
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="mar-mca-calls">—</div></div>
-          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="mar-mca-sms">—%</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="mar-mca-lt">—%</div></div>
         </div>
         <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Maria</div><div class="call-types">
@@ -587,7 +585,6 @@
         <div class="rep-metrics">
           <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="sar-mca-lts">—</div></div>
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="sar-mca-calls">—</div></div>
-          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="sar-mca-sms">—%</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="sar-mca-lt">—%</div></div>
         </div>
         <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Sara</div><div class="call-types">
@@ -635,7 +632,6 @@
         <div class="rep-metrics">
           <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="cam-cc-lts">—</div></div>
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="cam-cc-calls">—</div></div>
-          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="cam-cc-sms">—%</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="cam-cc-lt">—%</div></div>
         </div>
         <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Camila</div><div class="call-types">
@@ -651,7 +647,6 @@
         <div class="rep-metrics">
           <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="mar-cc-lts">—</div></div>
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="mar-cc-calls">—</div></div>
-          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="mar-cc-sms">—%</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="mar-cc-lt">—%</div></div>
         </div>
         <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Maria</div><div class="call-types">
@@ -667,7 +662,6 @@
         <div class="rep-metrics">
           <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="sar-cc-lts">—</div></div>
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="sar-cc-calls">—</div></div>
-          <div class="rep-metric"><div class="label">Tasa SMS → Call</div><div class="value" id="sar-cc-sms">—%</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value" style="color:#a78bfa" id="sar-cc-lt">—%</div></div>
         </div>
         <div class="call-breakdown"><div class="call-breakdown-title">Tipo de llamada — Sara</div><div class="call-types">
@@ -806,7 +800,6 @@ async function loadMcaReps() {
       const rep = d[key] ?? {};
       document.getElementById(`${prefix}-mca-lts`).textContent   = fmt(rep.ltsTotal);
       document.getElementById(`${prefix}-mca-calls`).textContent = fmt(rep.callsTotal);
-      document.getElementById(`${prefix}-mca-sms`).textContent   = pct(rep.rateSmsCall);
       document.getElementById(`${prefix}-mca-lt`).textContent    = pct(rep.rateCallLt);
       // Call breakdown — solo dirección disponible por ahora
       document.getElementById(`${prefix}-mca-callnow`).textContent  = '—%';
