@@ -308,6 +308,45 @@
     margin-top: 2px;
   }
 
+  /* call breakdown inline rows */
+  .call-breakdown {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    margin-bottom: 20px;
+  }
+  .call-breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .call-breakdown-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .call-breakdown-dot.inbound   { background: #22c55e; }
+  .call-breakdown-dot.callnow   { background: #4f6ef7; }
+  .call-breakdown-dot.scheduled { background: #f59e0b; }
+  .call-breakdown-dot.coldcall  { background: #a78bfa; }
+  .call-breakdown-label {
+    font-size: 11px;
+    color: var(--muted);
+    flex: 1;
+  }
+  .call-breakdown-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 24px;
+    text-align: right;
+  }
+
   /* ── Progress bar ── */
   .progress-bar {
     height: 4px;
@@ -583,6 +622,12 @@
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="cam-mca-calls">—</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="cam-mca-lt">—%</div></div>
         </div>
+        <div class="call-breakdown">
+          <div class="call-breakdown-item"><span class="call-breakdown-dot inbound"></span><span class="call-breakdown-label">Inbound</span><span class="call-breakdown-val" id="cam-mca-inbound">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot callnow"></span><span class="call-breakdown-label">Call Now</span><span class="call-breakdown-val" id="cam-mca-callnow">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot scheduled"></span><span class="call-breakdown-label">Scheduled</span><span class="call-breakdown-val" id="cam-mca-scheduled">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot coldcall"></span><span class="call-breakdown-label">Cold Call</span><span class="call-breakdown-val" id="cam-mca-coldcall">—</span></div>
+        </div>
       </div>
       <hr class="divider" />
       <div class="rep-section">
@@ -592,6 +637,12 @@
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="mar-mca-calls">—</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="mar-mca-lt">—%</div></div>
         </div>
+        <div class="call-breakdown">
+          <div class="call-breakdown-item"><span class="call-breakdown-dot inbound"></span><span class="call-breakdown-label">Inbound</span><span class="call-breakdown-val" id="mar-mca-inbound">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot callnow"></span><span class="call-breakdown-label">Call Now</span><span class="call-breakdown-val" id="mar-mca-callnow">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot scheduled"></span><span class="call-breakdown-label">Scheduled</span><span class="call-breakdown-val" id="mar-mca-scheduled">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot coldcall"></span><span class="call-breakdown-label">Cold Call</span><span class="call-breakdown-val" id="mar-mca-coldcall">—</span></div>
+        </div>
       </div>
       <hr class="divider" />
       <div class="rep-section">
@@ -600,6 +651,12 @@
           <div class="rep-metric"><div class="label">Live Transfers</div><div class="value" id="sar-mca-lts">—</div></div>
           <div class="rep-metric"><div class="label">Llamadas ≥30s</div><div class="value" id="sar-mca-calls">—</div></div>
           <div class="rep-metric"><div class="label">Tasa Call → LT</div><div class="value green" id="sar-mca-lt">—%</div></div>
+        </div>
+        <div class="call-breakdown">
+          <div class="call-breakdown-item"><span class="call-breakdown-dot inbound"></span><span class="call-breakdown-label">Inbound</span><span class="call-breakdown-val" id="sar-mca-inbound">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot callnow"></span><span class="call-breakdown-label">Call Now</span><span class="call-breakdown-val" id="sar-mca-callnow">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot scheduled"></span><span class="call-breakdown-label">Scheduled</span><span class="call-breakdown-val" id="sar-mca-scheduled">—</span></div>
+          <div class="call-breakdown-item"><span class="call-breakdown-dot coldcall"></span><span class="call-breakdown-label">Cold Call</span><span class="call-breakdown-val" id="sar-mca-coldcall">—</span></div>
         </div>
       </div>
     </div>
