@@ -827,7 +827,6 @@ async function loadGlobals() {
       applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today', d.optoutRateToday * 100, d.optoutToday, d.smsToday, 'hoy');
     }
     if (d.ltsByMonth) renderLtChart(d.ltsByMonth);
-    else loadLtHistory();
     setCacheFooter(d._cache);
   } catch(e) {}
 }
