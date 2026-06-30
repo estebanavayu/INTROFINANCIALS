@@ -712,6 +712,13 @@ async function loadGlobals() {
     if (d.smsMonth && d.callsMonth) document.getElementById('g-sms-call-month').textContent = (d.callsMonth/d.smsMonth*100).toFixed(2)+'%';
     if (d.calls && d.lts) document.getElementById('g-call-lt').textContent             = (d.lts/d.calls*100).toFixed(2)+'%';
     if (d.callsMonth && d.ltsMonth) document.getElementById('g-call-lt-month').textContent = (d.ltsMonth/d.callsMonth*100).toFixed(2)+'%';
+    // Opt-out rate desde Supabase (webhook)
+    if (d.optoutRateMonth != null && d.smsMonth) {
+      applyOptOutCard('g-optout-month', 'g-optout-month-sub', 'card-optout-month', d.optoutRateMonth, d.optoutMonth, d.smsMonth, d.monthLabel ?? 'mes');
+    }
+    if (d.optoutToday != null && d.smsMonth) {
+      applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today', d.optoutToday / (d.smsMonth / 30), d.optoutToday, 0, 'hoy');
+    }
   } catch(e) {}
 }
 

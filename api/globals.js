@@ -5,6 +5,17 @@ const SINCE   = '2026-02-01';
 const SB_URL = process.env.IF_SUPABASE_URL;
 const SB_KEY = process.env.IF_SUPABASE_KEY;
 
+async function fetchFromSupabase(table, tsField, startISO, endISO) {
+  if (!SB_URL || !SB_KEY) return null;
+  const params = new URLSearchParams({ select: 'id', [tsField]: `gte.${startISO}`, [`${tsField}.lte`]: endISO });
+  const r = await fetch(
+    `${SB_URL}/rest/v1/${table}?${params}`,
+    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
+  );
+  const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
+  return isNaN(total) ? null : total;
+}
+
 async function fetchCallsFromSupabase(startISO, endISO) {
   if (!SB_URL || !SB_KEY) return null;
   const params = new URLSearchParams({
@@ -87,8 +98,10 @@ export default async function handler(req, res) {
     const monthStartISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const nowISO        = now.toISOString();
 
+    const todayStartISO = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
     // Todo en paralelo — GHL + Supabase
-    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal, callsTotal, callsMonth] = await Promise.all([
+    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal, callsTotal, callsMonth, optoutMonth, optoutToday] = await Promise.all([
       fetchAllOpps(PIPELINES[0].id, { status: 'won' }),
       fetchAllOpps(PIPELINES[1].id, { status: 'won' }),
       fetchAllOpps(PIPELINES[2].id, { status: 'won' }),
@@ -96,6 +109,8 @@ export default async function handler(req, res) {
       fetchSmsTotal(SINCE, todayStr),
       fetchCallsFromSupabase(sinceISO, nowISO),
       fetchCallsFromSupabase(monthStartISO, nowISO),
+      fetchFromSupabase('optout_events', 'ts', monthStartISO, nowISO),
+      fetchFromSupabase('optout_events', 'ts', todayStartISO, nowISO),
     ]);
 
     // Dedup contactIds por wonAt más reciente
@@ -109,12 +124,17 @@ export default async function handler(req, res) {
       if (wonAt >= monthStartMs) ltsMonth++;
     }
 
+    const optoutRateMonth = smsMonth && optoutMonth ? optoutMonth / smsMonth : null;
+    const optoutRateToday = optoutToday != null ? optoutToday : null;
+
     res.json({
       since: SINCE,
       lts: ltsTotal, ltsMonth,
       calls: callsTotal, callsMonth,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
       smsMonth, smsTotal,
+      optoutMonth, optoutToday,
+      optoutRateMonth,
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
