@@ -35,22 +35,48 @@ async function setSyncCursor(ts) {
 }
 
 async function fetchConvMessages(convId) {
-  const r = await fetch(`${GHL_URL}/conversations/${convId}/messages`, { headers: GHL_HDR });
-  const d = await r.json().catch(() => ({}));
-  const msgs = Array.isArray(d.messages?.messages) ? d.messages.messages : [];
-  return msgs.filter(m => m.messageType === 'TYPE_CALL' && m.meta?.call?.status === 'completed');
+  try {
+    const r = await fetchWithRetry(`${GHL_URL}/conversations/${convId}/messages`, { headers: GHL_HDR });
+    const d = await r.json().catch(() => ({}));
+    const msgs = Array.isArray(d.messages?.messages) ? d.messages.messages : [];
+    return msgs.filter(m => m.messageType === 'TYPE_CALL' && m.meta?.call?.status === 'completed');
+  } catch (e) {
+    console.warn(`Error fetching conv ${convId}: ${e.message}`);
+    return [];
+  }
 }
 
 async function upsertCalls(records) {
   if (!records.length) return;
-  await fetch(`${SB_URL}/rest/v1/call_records`, {
+  const r = await fetchWithRetry(`${SB_URL}/rest/v1/call_records`, {
     method: 'POST',
     headers: { ...SB_HDR, 'Prefer': 'resolution=merge-duplicates' },
     body: JSON.stringify(records),
   });
+  if (!r.ok) console.error(`Error upsert calls: ${r.status} ${await r.text()}`);
 }
 
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchWithRetry(url, opts, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(url, opts);
+      if (r.status === 429) { // rate limit
+        const wait = parseInt(r.headers.get('Retry-After') ?? '10') * 1000;
+        console.warn(`Rate limit, esperando ${wait}ms...`);
+        await sleep(wait);
+        continue;
+      }
+      if (r.status >= 500) throw new Error(`HTTP ${r.status}`);
+      return r;
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      console.warn(`Intento ${i+1} fallido: ${e.message}. Reintentando...`);
+      await sleep(2000 * (i + 1));
+    }
+  }
+}
 
 async function main() {
   const cursor    = await getSyncCursor();
@@ -64,7 +90,7 @@ async function main() {
 
   while (!stopped) {
     const url = `${GHL_URL}/conversations/search?locationId=${GHL_LOC}&lastMessageType=TYPE_CALL&limit=100&page=${page}`;
-    const r   = await fetch(url, { headers: GHL_HDR });
+    const r   = await fetchWithRetry(url, { headers: GHL_HDR });
     const d   = await r.json().catch(() => ({}));
     const convs = d.conversations ?? [];
 

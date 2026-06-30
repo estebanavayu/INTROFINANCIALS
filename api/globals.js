@@ -5,17 +5,32 @@ const SINCE   = '2026-02-01';
 const SB_URL = process.env.IF_SUPABASE_URL;
 const SB_KEY = process.env.IF_SUPABASE_KEY;
 
+async function fetchSafe(url, opts, timeoutMs = 8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`Timeout: ${url}`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchFromSupabase(table, tsField, startISO, endISO) {
   if (!SB_URL || !SB_KEY) return null;
-  const params = new URLSearchParams({ select: 'contact_id' });
-  params.append(tsField, `gte.${startISO}`);
-  params.append(tsField, `lte.${endISO}`);
-  const r = await fetch(
-    `${SB_URL}/rest/v1/${table}?${params}`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
-  );
-  const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
-  return isNaN(total) ? null : total;
+  try {
+    const params = new URLSearchParams({ select: 'contact_id' });
+    params.append(tsField, `gte.${startISO}`);
+    params.append(tsField, `lte.${endISO}`);
+    const r = await fetchSafe(
+      `${SB_URL}/rest/v1/${table}?${params}`,
+      { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
+    );
+    const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
+    return isNaN(total) ? null : total;
+  } catch { return null; }
 }
 
 async function fetchCallsFromSupabase(startISO, endISO) {
@@ -32,14 +47,15 @@ async function fetchCallsFromSupabase(startISO, endISO) {
     return p;
   };
 
-  const [rOut, rIn] = await Promise.all([
-    fetch(`${base}?${buildParams('outbound')}`, { headers: hdr }),
-    fetch(`${base}?${buildParams('inbound')}`,  { headers: hdr }),
-  ]);
-
-  const parse = (r) => parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
-  const total = parse(rOut) + parse(rIn);
-  return isNaN(total) ? null : total;
+  try {
+    const [rOut, rIn] = await Promise.all([
+      fetchSafe(`${base}?${buildParams('outbound')}`, { headers: hdr }),
+      fetchSafe(`${base}?${buildParams('inbound')}`,  { headers: hdr }),
+    ]);
+    const parse = (r) => parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
+    const total = parse(rOut) + parse(rIn);
+    return isNaN(total) ? null : total;
+  } catch { return null; }
 }
 
 const PIPELINES = [
@@ -61,23 +77,30 @@ async function fetchAllOpps(pipelineId, params = {}) {
   const all = [];
   let page = 1;
   while (true) {
-    const qs = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, limit: 100, page, ...params }).toString();
-    const res  = await fetch(`${GHL_V2}/opportunities/search?${qs}`, { headers: hdrs() });
-    const data = await res.json().catch(() => ({}));
-    const opps = data.opportunities ?? [];
-    all.push(...opps);
-    if (all.length >= (data.meta?.total ?? 0) || opps.length === 0) break;
-    page++;
+    try {
+      const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, limit: 100, page, ...params }).toString();
+      const res  = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: hdrs() });
+      const data = await res.json().catch(() => ({}));
+      const opps = data.opportunities ?? [];
+      all.push(...opps);
+      if (all.length >= (data.meta?.total ?? 0) || opps.length === 0) break;
+      page++;
+    } catch (e) {
+      console.error(`fetchAllOpps p${page}: ${e.message}`);
+      break;
+    }
   }
   return all;
 }
 
 
 async function fetchSmsTotal(startDate, endDate) {
-  const url = `${GHL_V2}/conversations/messages/export?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
-  const res  = await fetch(url, { headers: hdrs() });
-  const data = await res.json().catch(() => ({}));
-  return data.total ?? null;
+  try {
+    const url  = `${GHL_V2}/conversations/messages/export?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
+    const res  = await fetchSafe(url, { headers: hdrs() });
+    const data = await res.json().catch(() => ({}));
+    return data.total ?? null;
+  } catch { return null; }
 }
 
 // Dedup contactIds de una lista de opps, devuelve Map<contactId, opp>
@@ -110,21 +133,22 @@ export default async function handler(req, res) {
     const todayStartISO = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
     // Todo en paralelo — GHL + Supabase
+    const safe = (p) => Promise.resolve(p).catch(() => null);
     const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal, smsToday, callsTotal, callsMonth, optoutMonth, optoutToday] = await Promise.all([
-      fetchAllOpps(PIPELINES[0].id, { status: 'won' }),
-      fetchAllOpps(PIPELINES[1].id, { status: 'won' }),
-      fetchAllOpps(PIPELINES[2].id, { status: 'won' }),
-      fetchSmsTotal(monthStartStr, todayStr),
-      fetchSmsTotal(SINCE, todayStr),
-      fetchSmsTotal(todayStr, tomorrowStr),
-      fetchCallsFromSupabase(sinceISO, nowISO),
-      fetchCallsFromSupabase(monthStartISO, nowISO),
-      fetchFromSupabase('optout_events', 'ts', monthStartISO, nowISO),
-      fetchFromSupabase('optout_events', 'ts', todayStartISO, nowISO),
+      safe(fetchAllOpps(PIPELINES[0].id, { status: 'won' })),
+      safe(fetchAllOpps(PIPELINES[1].id, { status: 'won' })),
+      safe(fetchAllOpps(PIPELINES[2].id, { status: 'won' })),
+      safe(fetchSmsTotal(monthStartStr, todayStr)),
+      safe(fetchSmsTotal(SINCE, todayStr)),
+      safe(fetchSmsTotal(todayStr, tomorrowStr)),
+      safe(fetchCallsFromSupabase(sinceISO, nowISO)),
+      safe(fetchCallsFromSupabase(monthStartISO, nowISO)),
+      safe(fetchFromSupabase('optout_events', 'ts', monthStartISO, nowISO)),
+      safe(fetchFromSupabase('optout_events', 'ts', todayStartISO, nowISO)),
     ]);
 
-    // Dedup contactIds por wonAt más reciente
-    const wonMap = dedupByContact([...wonRise, ...wonNcn, ...wonCentury]);
+    // Dedup contactIds por wonAt más reciente (safe: si un pipeline falla, usa array vacío)
+    const wonMap = dedupByContact([...(wonRise ?? []), ...(wonNcn ?? []), ...(wonCentury ?? [])]);
 
     // Contar LTs por lastStageChangeAt (wonAt)
     let ltsTotal = 0, ltsMonth = 0;
