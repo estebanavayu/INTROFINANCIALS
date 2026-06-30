@@ -806,7 +806,7 @@ async function loadMcaReps() {
       const rep = d[key] ?? {};
       document.getElementById(`${prefix}-mca-lts`).textContent   = fmt(rep.ltsTotal);
       document.getElementById(`${prefix}-mca-calls`).textContent = fmt(rep.callsTotal);
-      document.getElementById(`${prefix}-mca-sms`).textContent   = '—%';
+      document.getElementById(`${prefix}-mca-sms`).textContent   = pct(rep.rateSmsCall);
       document.getElementById(`${prefix}-mca-lt`).textContent    = pct(rep.rateCallLt);
       // Call breakdown — solo dirección disponible por ahora
       document.getElementById(`${prefix}-mca-callnow`).textContent  = '—%';
