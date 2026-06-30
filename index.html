@@ -997,9 +997,14 @@ function renderMcaReps(d) {
   const m   = _mcaRepPeriod === 'month';
   for (const [prefix, key] of [['cam','camila'],['mar','maria'],['sar','sara']]) {
     const rep = d[key] ?? {};
-    document.getElementById(`${prefix}-mca-lts`).textContent   = fmt(m ? rep.ltsMonth   : rep.ltsTotal);
-    document.getElementById(`${prefix}-mca-calls`).textContent = fmt(m ? rep.callsMonth : rep.callsTotal);
-    document.getElementById(`${prefix}-mca-lt`).textContent    = pct(m ? rep.rateCallLtMonth : rep.rateCallLt);
+    document.getElementById(`${prefix}-mca-lts`).textContent      = fmt(m ? rep.ltsMonth   : rep.ltsTotal);
+    document.getElementById(`${prefix}-mca-calls`).textContent    = fmt(m ? rep.callsMonth : rep.callsTotal);
+    document.getElementById(`${prefix}-mca-lt`).textContent       = pct(m ? rep.rateCallLtMonth : rep.rateCallLt);
+    // Call breakdown (estado actual — sin toggle de período)
+    document.getElementById(`${prefix}-mca-inbound`).textContent  = fmt(rep.inbound);
+    document.getElementById(`${prefix}-mca-callnow`).textContent  = fmt(rep.callNow);
+    document.getElementById(`${prefix}-mca-scheduled`).textContent= fmt(rep.scheduled);
+    document.getElementById(`${prefix}-mca-coldcall`).textContent = fmt(rep.coldCall);
   }
 }
 

@@ -276,6 +276,67 @@ async function computeMca(D) {
   };
 }
 
+// Descubre IDs de stage "Llamada Agendada" y campo "CALL NOW???" en GENERAL OPENING
+async function discoverGeneralOpeningMeta() {
+  const meta = { llamadaStageId: null, callNowFieldId: null };
+
+  // 1. Pipeline stages
+  try {
+    const r  = await ghlFetch(`${GHL_V2}/opportunities/pipelines?locationId=${GHL_LOC}`);
+    const d  = await r.json().catch(() => ({}));
+    const gp = (d.pipelines ?? []).find(p => p.id === GENERAL_OPENING);
+    const st = (gp?.stages ?? []).find(s => /llamada.?agendada/i.test(s.name));
+    if (st) { meta.llamadaStageId = st.id; console.log(`  [meta] Llamada Agendada stage: ${st.id}`); }
+    else    { console.warn('  [meta] Stage "Llamada Agendada" no encontrado'); }
+  } catch(e) { console.warn('  [meta] error pipelines:', e.message); }
+
+  await sleep(400);
+
+  // 2. Custom fields
+  try {
+    const r  = await ghlFetch(`${GHL_V2}/custom-fields?locationId=${GHL_LOC}`);
+    const d  = await r.json().catch(() => ({}));
+    const cf = (d.customFields ?? []).find(f => /call.?now/i.test(f.name));
+    if (cf) { meta.callNowFieldId = cf.id; console.log(`  [meta] CALL NOW field: ${cf.id} (${cf.name})`); }
+    else    { console.warn('  [meta] Campo "CALL NOW" no encontrado'); }
+  } catch(e) { console.warn('  [meta] error custom-fields:', e.message); }
+
+  return meta;
+}
+
+// Cuenta opps en un stage específico asignados a un rep (usa meta.total → 1 request)
+async function countRepStage(repId, stageId) {
+  if (!stageId) return null;
+  try {
+    const qs = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: GENERAL_OPENING, pipeline_stage_id: stageId, assignedTo: repId, limit: 1 });
+    const r  = await ghlFetch(`${GHL_V2}/opportunities/search?${qs}`);
+    const d  = await r.json().catch(() => ({}));
+    return d.meta?.total ?? 0;
+  } catch { return null; }
+}
+
+// Cuenta opps con el campo "CALL NOW" set, asignados a un rep (pagina GENERAL OPENING)
+async function countRepCallNow(repId, fieldId) {
+  if (!fieldId) return null;
+  let count = 0, page = 1;
+  try {
+    while (true) {
+      const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: GENERAL_OPENING, assignedTo: repId, status: 'open', limit: 100, page });
+      const r   = await ghlFetch(`${GHL_V2}/opportunities/search?${qs}`);
+      const d   = await r.json().catch(() => ({}));
+      const ops = d.opportunities ?? [];
+      for (const o of ops) {
+        const hasField = (o.customFields ?? []).some(f => f.id === fieldId && f.value != null && f.value !== '' && f.value !== false);
+        if (hasField) count++;
+      }
+      if (ops.length < 100 || count >= (d.meta?.total ?? 0)) break;
+      page++;
+      await sleep(300);
+    }
+    return count;
+  } catch { return null; }
+}
+
 async function computeMcaReps(D) {
   console.log('\n[mca_reps] Fetching all opps...');
   const allOpps = [];
@@ -329,6 +390,26 @@ async function computeMcaReps(D) {
       rateCallLtMonth: cM ? ltM / cM : null,
     };
   }
+
+  // ── Call breakdown por rep (Scheduled + Call Now) ──────────
+  console.log('\n[mca_reps] Fetching call breakdown (Scheduled + Call Now)...');
+  await sleep(500);
+  const gMeta = await discoverGeneralOpeningMeta();
+  await sleep(400);
+
+  for (const n of names) {
+    const userId = REPS[n];
+    await sleep(300);
+    const scheduled = await countRepStage(userId, gMeta.llamadaStageId);
+    await sleep(300);
+    const callNow   = await countRepCallNow(userId, gMeta.callNowFieldId);
+    result[n].scheduled = scheduled;
+    result[n].callNow   = callNow;
+    result[n].inbound   = null; // pendiente — definir fuente
+    result[n].coldCall  = null; // pendiente — definir fuente
+    console.log(`  [${n}] scheduled=${scheduled} callNow=${callNow}`);
+  }
+
   return result;
 }
 
