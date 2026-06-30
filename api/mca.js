@@ -135,30 +135,30 @@ async function fetchLeadsEnSecuencia() {
   }
 }
 
-// Busca stages con "no show" en el nombre dentro de los pipelines MCA
+// No Show vive en GENERAL OPENING (fxzuSpmyNzMH4yupNfk1)
+const GENERAL_OPENING = 'fxzuSpmyNzMH4yupNfk1';
+
 async function fetchNoShowCount() {
   try {
     const res  = await fetchSafe(`${GHL_V2}/opportunities/pipelines?locationId=${GHL_LOC}`, { headers: hdrs() });
     const data = await res.json().catch(() => ({}));
     const pipelines = data.pipelines ?? [];
 
-    const noShowStageIds = new Set();
+    // Buscar stage "No Show" en GENERAL OPENING
+    const noShowStageIds = [];
     for (const p of pipelines) {
-      if (!MCA_PIPELINES.includes(p.id)) continue;
+      if (p.id !== GENERAL_OPENING) continue;
       for (const stage of p.stages ?? []) {
-        if (/no[\s_-]?show/i.test(stage.name)) noShowStageIds.add(stage.id);
+        if (/no[\s_-]?show/i.test(stage.name)) noShowStageIds.push(stage.id);
       }
     }
 
-    if (!noShowStageIds.size) return null;
+    if (!noShowStageIds.length) return null;
 
-    // Contar opps en esos stages (en cualquier status)
     let total = 0;
-    for (const pipelineId of MCA_PIPELINES) {
-      for (const stageId of noShowStageIds) {
-        const opps = await fetchAllOpps(pipelineId, { pipeline_stage_id: stageId });
-        total += opps.length;
-      }
+    for (const stageId of noShowStageIds) {
+      const opps = await fetchAllOpps(GENERAL_OPENING, { pipeline_stage_id: stageId });
+      total += opps.length;
     }
     return total;
   } catch (e) {
