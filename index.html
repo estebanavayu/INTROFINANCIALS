@@ -493,17 +493,54 @@
     <!-- SUB: FUNNEL MCA -->
     <div class="subsection active" id="subtab-mca-funnel">
       <div class="funnel-card">
-        <div class="funnel-card-header">Funnel completo <span class="badge mca">MCA</span></div>
-        <div class="funnel-rows">
-          <div class="funnel-row"><span class="funnel-row-label">Leads en secuencia</span><span class="funnel-row-value" id="mca-leads">—</span><span class="funnel-row-pct"></span></div>
-          <div class="funnel-row"><span class="funnel-row-label">Mensajes blasteados</span><span class="funnel-row-value" id="mca-blasted">—</span><span class="funnel-row-pct" style="color:var(--muted);font-size:10px">acumulado</span></div>
-          <div class="funnel-row"><span class="funnel-row-label">Llamadas concretadas ≥30s</span><span class="funnel-row-value" id="mca-calls">—</span><span class="funnel-row-pct" id="mca-sms-call-pct">—%</span></div>
-          <div class="funnel-row"><span class="funnel-row-label">LTs concretadas</span><span class="funnel-row-value" id="mca-lts">—</span><span class="funnel-row-pct" id="mca-call-lt-pct">—%</span></div>
-          <div class="funnel-row"><span class="funnel-row-label">Not shows acumulado</span><span class="funnel-row-value" id="mca-noshows">—</span><span class="funnel-row-pct" id="mca-noshow-pct">—%</span></div>
+        <div class="funnel-card-header">
+          Funnel completo <span class="badge mca">MCA</span>
+          <div style="margin-left:auto;display:flex;gap:0">
+            <span style="font-size:10px;color:var(--label);min-width:100px;text-align:right;font-weight:600;letter-spacing:0.5px">DESDE FEB 2026</span>
+            <span style="font-size:10px;color:var(--label);min-width:100px;text-align:right;font-weight:600;letter-spacing:0.5px" id="mca-month-col">ESTE MES</span>
+          </div>
         </div>
-        <div style="padding:12px 16px;background:var(--surface2);display:flex;gap:32px;border-top:1px solid var(--border)">
-          <div><div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa SMS → Call</div><div style="font-size:18px;font-weight:700" id="mca-rate-sms">—%</div></div>
-          <div><div style="font-size:10px;color:var(--label);margin-bottom:4px">Tasa Call → LT</div><div style="font-size:18px;font-weight:700;color:var(--green)" id="mca-rate-lt">—%</div></div>
+        <div class="funnel-rows">
+          <div class="funnel-row">
+            <span class="funnel-row-label">Mensajes blasteados</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right" id="mca-blasted">—</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right;color:var(--muted);font-size:13px" id="mca-blasted-month">—</span>
+          </div>
+          <div class="funnel-row">
+            <span class="funnel-row-label">Llamadas concretadas ≥30s</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right" id="mca-calls">—</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right;color:var(--muted);font-size:13px" id="mca-calls-month">—</span>
+          </div>
+          <div class="funnel-row">
+            <span class="funnel-row-label">LTs concretadas</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right;color:var(--green)" id="mca-lts">—</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right;color:var(--green);font-size:13px" id="mca-lts-month">—</span>
+          </div>
+          <div class="funnel-row">
+            <span class="funnel-row-label">Not shows acumulado</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right;color:var(--yellow)" id="mca-noshows">—</span>
+            <span class="funnel-row-value" style="min-width:100px;text-align:right" id="mca-noshows-month" title="No disponible por período"></span>
+          </div>
+        </div>
+        <div style="padding:12px 16px;background:var(--surface2);border-top:1px solid var(--border)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:10px;color:var(--label)">SMS → Call (total)</span>
+              <span style="font-size:16px;font-weight:700" id="mca-rate-sms">—%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:10px;color:var(--label)">SMS → Call (mes)</span>
+              <span style="font-size:16px;font-weight:700" id="mca-rate-sms-month">—%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:10px;color:var(--label)">Call → LT (total)</span>
+              <span style="font-size:16px;font-weight:700;color:var(--green)" id="mca-rate-lt">—%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:10px;color:var(--label)">Call → LT (mes)</span>
+              <span style="font-size:16px;font-weight:700;color:var(--green)" id="mca-rate-lt-month">—%</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -728,25 +765,27 @@ async function loadMca() {
     const r = await fetch('/api/mca');
     const d = await r.json();
 
-    const fmt  = (n) => n != null ? n.toLocaleString('es-CL') : '—';
-    const pct  = (n) => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+    const fmt = (n) => n != null ? n.toLocaleString('es-CL') : '—';
+    const pct = (n) => n != null ? (n * 100).toFixed(2) + '%' : '—%';
 
-    // Funnel rows
-    document.getElementById('mca-blasted').textContent     = fmt(d.smsTotal);
-    document.getElementById('mca-calls').textContent       = fmt(d.callsTotal);
-    document.getElementById('mca-lts').textContent         = fmt(d.ltsTotal);
-    document.getElementById('mca-noshows').textContent     = fmt(d.noShows);
+    if (d.monthLabel) document.getElementById('mca-month-col').textContent = d.monthLabel.toUpperCase();
 
-    // Porcentajes junto a cada fila
-    document.getElementById('mca-sms-call-pct').textContent  = pct(d.rateSmsCall);
-    document.getElementById('mca-call-lt-pct').textContent   = pct(d.rateCallLt);
-    if (d.noShows != null && d.ltsTotal > 0) {
-      document.getElementById('mca-noshow-pct').textContent  = (d.noShows / d.ltsTotal * 100).toFixed(1) + '%';
-    }
+    // Columna total
+    document.getElementById('mca-blasted').textContent  = fmt(d.smsTotal);
+    document.getElementById('mca-calls').textContent    = fmt(d.callsTotal);
+    document.getElementById('mca-lts').textContent      = fmt(d.ltsTotal);
+    document.getElementById('mca-noshows').textContent  = fmt(d.noShows);
 
-    // Tasas en el footer del card
-    document.getElementById('mca-rate-sms').textContent = pct(d.rateSmsCall);
-    document.getElementById('mca-rate-lt').textContent  = pct(d.rateCallLt);
+    // Columna mes
+    document.getElementById('mca-blasted-month').textContent = fmt(d.smsMonth);
+    document.getElementById('mca-calls-month').textContent   = fmt(d.callsMonth);
+    document.getElementById('mca-lts-month').textContent     = fmt(d.ltsMonth);
+
+    // Tasas en footer (total + mes)
+    document.getElementById('mca-rate-sms').textContent       = pct(d.rateSmsCall);
+    document.getElementById('mca-rate-sms-month').textContent = pct(d.rateSmsCallMonth);
+    document.getElementById('mca-rate-lt').textContent        = pct(d.rateCallLt);
+    document.getElementById('mca-rate-lt-month').textContent  = pct(d.rateCallLtMonth);
 
   } catch(e) { console.error('loadMca:', e); }
 }
