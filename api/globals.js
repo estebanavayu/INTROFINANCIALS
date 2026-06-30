@@ -5,19 +5,29 @@ const SINCE   = '2026-02-01';
 const SB_URL = process.env.IF_SUPABASE_URL;
 const SB_KEY = process.env.IF_SUPABASE_KEY;
 
-async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+// Pipelines MCA + CC
+const PIPELINES_WON = [
+  '85kFh5EWKPg7qg9FDJfg', // RISE OPENING
+  'tzoH6Bv4qfC4Rug8yZvQ', // NCN OPENING
+  '8tbkIiJnJCnPZY6X0mA6', // CENTURY OPENING (CC)
+];
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function fetchSafe(url, opts, timeoutMs = 8000, retries = 3) {
   for (let i = 0; i < retries; i++) {
-    const ctrl = new AbortController();
+    const ctrl  = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const r = await fetch(url, { ...opts, signal: ctrl.signal });
       if (r.status === 429) {
-        const wait = parseInt(r.headers.get('Retry-After') ?? '5') * 1000;
-        await sleep(wait || 5000);
+        const wait = parseInt(r.headers.get('Retry-After') ?? '8') * 1000;
+        await sleep(wait || 8000);
         continue;
       }
+      if (r.status >= 500) { await sleep(1500 * (i + 1)); continue; }
       return r;
     } catch (e) {
       if (e.name === 'AbortError' && i === retries - 1) throw new Error(`Timeout: ${url}`);
@@ -26,29 +36,80 @@ async function fetchSafe(url, opts, timeoutMs = 8000, retries = 3) {
       clearTimeout(timer);
     }
   }
-  throw new Error(`fetchSafe failed after ${retries} retries: ${url}`);
+  throw new Error(`fetchSafe agotó reintentos: ${url}`);
 }
 
-async function fetchFromSupabase(table, tsField, startISO, endISO) {
-  if (!SB_URL || !SB_KEY) return null;
+const safe = (p) => Promise.resolve(p).catch(() => null);
+
+function ghlHdrs() {
+  return {
+    Authorization: `Bearer ${process.env.GHL_TOKEN}`,
+    Version:       '2021-07-28',
+    Accept:        'application/json',
+  };
+}
+
+function sbHdrs(extra = {}) {
+  return { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, ...extra };
+}
+
+// Trae TODOS los won opps de un pipeline — secuencial con pausa entre páginas
+async function fetchWonOpps(pipelineId) {
+  const all = [];
+  let page  = 1;
+  while (true) {
+    const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, status: 'won', limit: 100, page }).toString();
+    let data;
+    try {
+      const res = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: ghlHdrs() });
+      data = await res.json().catch(() => ({}));
+    } catch (e) {
+      console.error(`fetchWonOpps ${pipelineId} p${page}: ${e.message}`);
+      break;
+    }
+    const opps = data.opportunities ?? [];
+    all.push(...opps);
+    if (all.length >= (data.meta?.total ?? 0) || !opps.length) break;
+    page++;
+    await sleep(250); // pausa entre páginas para no saturar GHL
+  }
+  return all;
+}
+
+// Fetch won opps de todos los pipelines SECUENCIALMENTE (evita rate limit paralelo)
+async function fetchAllWonOpps() {
+  const result = [];
+  for (const pid of PIPELINES_WON) {
+    const opps = await safe(fetchWonOpps(pid)) ?? [];
+    result.push(...opps);
+    await sleep(400); // pausa entre pipelines
+  }
+  return result;
+}
+
+// Dedup contactId → opp con wonAt más reciente
+function dedupByContact(opps) {
+  const map = new Map();
+  for (const o of opps) {
+    if (!o.contactId) continue;
+    const prev = map.get(o.contactId);
+    if (!prev || (o.lastStageChangeAt ?? '') > (prev.lastStageChangeAt ?? '')) map.set(o.contactId, o);
+  }
+  return map;
+}
+
+async function fetchSmsTotal(startDate, endDate) {
   try {
-    const params = new URLSearchParams({ select: 'contact_id' });
-    params.append(tsField, `gte.${startISO}`);
-    params.append(tsField, `lte.${endISO}`);
-    const r = await fetchSafe(
-      `${SB_URL}/rest/v1/${table}?${params}`,
-      { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
-    );
-    const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
-    return isNaN(total) ? null : total;
+    const url = `${GHL_V2}/conversations/messages/export?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
+    const res = await fetchSafe(url, { headers: ghlHdrs() });
+    const d   = await res.json().catch(() => ({}));
+    return d.total ?? null;
   } catch { return null; }
 }
 
 async function fetchCallsFromSupabase(startISO, endISO) {
   if (!SB_URL || !SB_KEY) return null;
-  // Contar outbound + inbound con status=completed y duration>=30
-  // Se hace en dos queries porque PostgREST no soporta OR en filtros directamente
-  const hdr = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' };
+  const hdr  = sbHdrs({ Prefer: 'count=exact', Range: '0-0' });
   const base = `${SB_URL}/rest/v1/call_records`;
 
   const buildParams = (dir) => {
@@ -69,61 +130,22 @@ async function fetchCallsFromSupabase(startISO, endISO) {
   } catch { return null; }
 }
 
-const PIPELINES = [
-  { id: '85kFh5EWKPg7qg9FDJfg' }, // RISE OPENING
-  { id: 'tzoH6Bv4qfC4Rug8yZvQ' }, // NCN OPENING
-  { id: '8tbkIiJnJCnPZY6X0mA6' }, // CENTURY OPENING (CC)
-];
-
-function hdrs() {
-  return {
-    'Authorization': `Bearer ${process.env.GHL_TOKEN}`,
-    'Version':       '2021-07-28',
-    'Accept':        'application/json',
-    'Content-Type':  'application/json',
-  };
-}
-
-async function fetchAllOpps(pipelineId, params = {}) {
-  const all = [];
-  let page = 1;
-  while (true) {
-    try {
-      const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, limit: 100, page, ...params }).toString();
-      const res  = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: hdrs() });
-      const data = await res.json().catch(() => ({}));
-      const opps = data.opportunities ?? [];
-      all.push(...opps);
-      if (all.length >= (data.meta?.total ?? 0) || opps.length === 0) break;
-      page++;
-    } catch (e) {
-      console.error(`fetchAllOpps p${page}: ${e.message}`);
-      break;
-    }
-  }
-  return all;
-}
-
-
-async function fetchSmsTotal(startDate, endDate) {
+async function fetchOptOut(startISO, endISO) {
+  if (!SB_URL || !SB_KEY) return null;
   try {
-    const url  = `${GHL_V2}/conversations/messages/export?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
-    const res  = await fetchSafe(url, { headers: hdrs() });
-    const data = await res.json().catch(() => ({}));
-    return data.total ?? null;
+    const params = new URLSearchParams({ select: 'contact_id' });
+    params.append('ts', `gte.${startISO}`);
+    params.append('ts', `lte.${endISO}`);
+    const r = await fetchSafe(
+      `${SB_URL}/rest/v1/optout_events?${params}`,
+      { headers: sbHdrs({ Prefer: 'count=exact', Range: '0-0' }) }
+    );
+    const total = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
+    return isNaN(total) ? null : total;
   } catch { return null; }
 }
 
-// Dedup contactIds de una lista de opps, devuelve Map<contactId, opp>
-function dedupByContact(opps) {
-  const map = new Map();
-  for (const o of opps) {
-    if (!o.contactId) continue;
-    const prev = map.get(o.contactId);
-    if (!prev || (o.lastStageChangeAt ?? '') > (prev.lastStageChangeAt ?? '')) map.set(o.contactId, o);
-  }
-  return map;
-}
+// ── Handler ──────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -136,32 +158,27 @@ export default async function handler(req, res) {
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
     const todayStr      = now.toISOString().slice(0, 10);
     const tomorrowStr   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString().slice(0, 10);
-
     const sinceISO      = new Date(SINCE).toISOString();
     const monthStartISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const nowISO        = now.toISOString();
-
     const todayStartISO = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-    // Todo en paralelo — GHL + Supabase
-    const safe = (p) => Promise.resolve(p).catch(() => null);
-    const [wonRise, wonNcn, wonCentury, smsMonth, smsTotal, smsToday, callsTotal, callsMonth, optoutMonth, optoutToday] = await Promise.all([
-      safe(fetchAllOpps(PIPELINES[0].id, { status: 'won' })),
-      safe(fetchAllOpps(PIPELINES[1].id, { status: 'won' })),
-      safe(fetchAllOpps(PIPELINES[2].id, { status: 'won' })),
+    // GHL pipelines: SECUENCIALES para evitar rate limit
+    const allWonOpps = await fetchAllWonOpps();
+
+    // Supabase + SMS en paralelo (no afectan rate limit GHL)
+    const [smsMonth, smsTotal, smsToday, callsTotal, callsMonth, optoutMonth, optoutToday] = await Promise.all([
       safe(fetchSmsTotal(monthStartStr, todayStr)),
       safe(fetchSmsTotal(SINCE, todayStr)),
       safe(fetchSmsTotal(todayStr, tomorrowStr)),
       safe(fetchCallsFromSupabase(sinceISO, nowISO)),
       safe(fetchCallsFromSupabase(monthStartISO, nowISO)),
-      safe(fetchFromSupabase('optout_events', 'ts', monthStartISO, nowISO)),
-      safe(fetchFromSupabase('optout_events', 'ts', todayStartISO, nowISO)),
+      safe(fetchOptOut(monthStartISO, nowISO)),
+      safe(fetchOptOut(todayStartISO, nowISO)),
     ]);
 
-    // Dedup contactIds por wonAt más reciente (safe: si un pipeline falla, usa array vacío)
-    const wonMap = dedupByContact([...(wonRise ?? []), ...(wonNcn ?? []), ...(wonCentury ?? [])]);
-
-    // Contar LTs por lastStageChangeAt (wonAt)
+    // Dedup + conteo LTs
+    const wonMap = dedupByContact(allWonOpps);
     let ltsTotal = 0, ltsMonth = 0;
     for (const o of wonMap.values()) {
       const wonAt = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
@@ -181,7 +198,7 @@ export default async function handler(req, res) {
       optoutMonth, optoutToday,
       optoutRateMonth, optoutRateToday,
     });
-  } catch(e) {
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 }

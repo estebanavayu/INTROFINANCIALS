@@ -9,26 +9,11 @@ const MCA_PIPELINES = [
   '85kFh5EWKPg7qg9FDJfg', // RISE OPENING
   'tzoH6Bv4qfC4Rug8yZvQ', // NCN OPENING
 ];
+const GENERAL_OPENING = 'fxzuSpmyNzMH4yupNfk1';
 
-// Nombres exactos de los workflows MCA en GHL
-const MCA_WORKFLOW_NAMES = new Set([
-  'MARIA V2 - BULK FUP COLD BLAST',
-  'CAMILA V2 - BULK FUP COLD BLAST',
-  'PROVISORIO Y LA CTM - FIXED NUMBERS',
-  'PROVISORIO test botón recuperar lead de sara',
-  'PARTNER SEQUENCE - Defaults & Declined',
-]);
+// ── Helpers ──────────────────────────────────────────────────
 
-function hdrs() {
-  return {
-    'Authorization': `Bearer ${process.env.GHL_TOKEN}`,
-    'Version':       '2021-07-28',
-    'Accept':        'application/json',
-    'Content-Type':  'application/json',
-  };
-}
-
-async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function fetchSafe(url, opts, timeoutMs = 10000, retries = 3) {
   for (let i = 0; i < retries; i++) {
@@ -37,10 +22,11 @@ async function fetchSafe(url, opts, timeoutMs = 10000, retries = 3) {
     try {
       const r = await fetch(url, { ...opts, signal: ctrl.signal });
       if (r.status === 429) {
-        const wait = parseInt(r.headers.get('Retry-After') ?? '5') * 1000;
-        await sleep(wait || 5000);
+        const wait = parseInt(r.headers.get('Retry-After') ?? '8') * 1000;
+        await sleep(wait || 8000);
         continue;
       }
+      if (r.status >= 500) { await sleep(1500 * (i + 1)); continue; }
       return r;
     } catch (e) {
       if (e.name === 'AbortError' && i === retries - 1) throw new Error(`Timeout: ${url}`);
@@ -49,30 +35,58 @@ async function fetchSafe(url, opts, timeoutMs = 10000, retries = 3) {
       clearTimeout(timer);
     }
   }
-  throw new Error(`fetchSafe failed after ${retries} retries: ${url}`);
+  throw new Error(`fetchSafe agotó reintentos: ${url}`);
 }
 
-async function fetchAllOpps(pipelineId, params = {}) {
+const safe = (p) => Promise.resolve(p).catch(() => null);
+
+function ghlHdrs() {
+  return {
+    Authorization: `Bearer ${process.env.GHL_TOKEN}`,
+    Version:       '2021-07-28',
+    Accept:        'application/json',
+  };
+}
+
+function sbHdrs(extra = {}) {
+  return { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, ...extra };
+}
+
+// Trae won opps de un pipeline, paginando con pausa entre páginas
+async function fetchWonOpps(pipelineId) {
   const all = [];
-  let page = 1;
+  let page  = 1;
   while (true) {
+    const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, status: 'won', limit: 100, page }).toString();
+    let data;
     try {
-      const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, limit: 100, page, ...params }).toString();
-      const res = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: hdrs() });
-      const d   = await res.json().catch(() => ({}));
-      const opps = d.opportunities ?? [];
-      all.push(...opps);
-      if (all.length >= (d.meta?.total ?? 0) || opps.length === 0) break;
-      page++;
+      const res = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: ghlHdrs() });
+      data = await res.json().catch(() => ({}));
     } catch (e) {
-      console.error(`fetchAllOpps ${pipelineId} p${page}: ${e.message}`);
+      console.error(`fetchWonOpps ${pipelineId} p${page}: ${e.message}`);
       break;
     }
+    const opps = data.opportunities ?? [];
+    all.push(...opps);
+    if (all.length >= (data.meta?.total ?? 0) || !opps.length) break;
+    page++;
+    await sleep(250);
   }
   return all;
 }
 
-// Dedup contactId por wonAt más reciente
+// Fetch RISE + NCN SECUENCIALMENTE para no saturar GHL
+async function fetchMcaWonOpps() {
+  const all = [];
+  for (const pid of MCA_PIPELINES) {
+    const opps = await safe(fetchWonOpps(pid)) ?? [];
+    all.push(...opps);
+    await sleep(400);
+  }
+  return all;
+}
+
+// Dedup contactId → opp con wonAt más reciente
 function dedupByContact(opps) {
   const map = new Map();
   for (const o of opps) {
@@ -86,7 +100,7 @@ function dedupByContact(opps) {
 async function fetchSmsTotal(startDate, endDate) {
   try {
     const url = `${GHL_V2}/conversations/messages/export?locationId=${GHL_LOC}&startDate=${startDate}&endDate=${endDate}&limit=10`;
-    const res = await fetchSafe(url, { headers: hdrs() });
+    const res = await fetchSafe(url, { headers: ghlHdrs() });
     const d   = await res.json().catch(() => ({}));
     return d.total ?? null;
   } catch { return null; }
@@ -94,15 +108,15 @@ async function fetchSmsTotal(startDate, endDate) {
 
 async function fetchCallsFromSupabase(startISO, endISO) {
   if (!SB_URL || !SB_KEY) return null;
+  const hdr  = sbHdrs({ Prefer: 'count=exact', Range: '0-0' });
+  const base = `${SB_URL}/rest/v1/call_records`;
+  const buildParams = (dir) => {
+    const p = new URLSearchParams({ select: 'id', direction: `eq.${dir}`, status: 'eq.completed', duration: 'gte.30' });
+    p.append('date_added', `gte.${startISO}`);
+    p.append('date_added', `lte.${endISO}`);
+    return p;
+  };
   try {
-    const hdr  = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: 'count=exact', Range: '0-0' };
-    const base = `${SB_URL}/rest/v1/call_records`;
-    const buildParams = (dir) => {
-      const p = new URLSearchParams({ select: 'id', direction: `eq.${dir}`, status: 'eq.completed', duration: 'gte.30' });
-      p.append('date_added', `gte.${startISO}`);
-      p.append('date_added', `lte.${endISO}`);
-      return p;
-    };
     const [rOut, rIn] = await Promise.all([
       fetchSafe(`${base}?${buildParams('outbound')}`, { headers: hdr }),
       fetchSafe(`${base}?${buildParams('inbound')}`,  { headers: hdr }),
@@ -113,50 +127,43 @@ async function fetchCallsFromSupabase(startISO, endISO) {
   } catch { return null; }
 }
 
-// Leads en secuencia = opps open en GENERAL OPENING (GHL API no expone activos en workflows)
+// Leads en secuencia = opps open en GENERAL OPENING
 async function fetchLeadsEnSecuencia() {
   try {
     const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: GENERAL_OPENING, status: 'open', limit: 1 });
-    const res = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: hdrs() });
+    const res = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: ghlHdrs() });
     const d   = await res.json().catch(() => ({}));
     return d.meta?.total ?? null;
-  } catch (e) {
-    console.error('fetchLeadsEnSecuencia:', e.message);
-    return null;
-  }
+  } catch { return null; }
 }
 
-// No Show vive en GENERAL OPENING (fxzuSpmyNzMH4yupNfk1)
-const GENERAL_OPENING = 'fxzuSpmyNzMH4yupNfk1';
-
+// No Show stage en GENERAL OPENING
 async function fetchNoShowCount() {
   try {
-    const res  = await fetchSafe(`${GHL_V2}/opportunities/pipelines?locationId=${GHL_LOC}`, { headers: hdrs() });
-    const data = await res.json().catch(() => ({}));
-    const pipelines = data.pipelines ?? [];
+    const res      = await fetchSafe(`${GHL_V2}/opportunities/pipelines?locationId=${GHL_LOC}`, { headers: ghlHdrs() });
+    const data     = await res.json().catch(() => ({}));
+    const pipeline = (data.pipelines ?? []).find(p => p.id === GENERAL_OPENING);
+    const stageIds = (pipeline?.stages ?? [])
+      .filter(s => /no[\s_-]?show/i.test(s.name))
+      .map(s => s.id);
 
-    // Buscar stage "No Show" en GENERAL OPENING
-    const noShowStageIds = [];
-    for (const p of pipelines) {
-      if (p.id !== GENERAL_OPENING) continue;
-      for (const stage of p.stages ?? []) {
-        if (/no[\s_-]?show/i.test(stage.name)) noShowStageIds.push(stage.id);
-      }
-    }
-
-    if (!noShowStageIds.length) return null;
+    if (!stageIds.length) return null;
 
     let total = 0;
-    for (const stageId of noShowStageIds) {
-      const opps = await fetchAllOpps(GENERAL_OPENING, { pipeline_stage_id: stageId });
-      total += opps.length;
+    for (const stageId of stageIds) {
+      const opps = await safe(fetchWonOpps(GENERAL_OPENING)) ?? []; // reutiliza paginador
+      // Filtrar por stage directamente
+      const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: GENERAL_OPENING, pipeline_stage_id: stageId, limit: 1 });
+      const r   = await safe(fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: ghlHdrs() }));
+      const d   = await r?.json().catch(() => ({})) ?? {};
+      total += d.meta?.total ?? 0;
+      await sleep(300);
     }
     return total;
-  } catch (e) {
-    console.error('fetchNoShowCount:', e.message);
-    return null;
-  }
+  } catch { return null; }
 }
+
+// ── Handler ──────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -173,12 +180,11 @@ export default async function handler(req, res) {
     const monthStartISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const nowISO        = now.toISOString();
 
-    const safe = (p) => Promise.resolve(p).catch(() => null);
+    // GHL opps: SECUENCIALES
+    const allWonOpps = await fetchMcaWonOpps();
 
-    // Fetch all in parallel (LTs + SMS + calls + no shows + leads en secuencia)
-    const [wonRise, wonNcn, smsMonth, smsTotal, smsToday, callsTotal, callsMonth, noShows, leadsActive] = await Promise.all([
-      safe(fetchAllOpps(MCA_PIPELINES[0], { status: 'won' })),
-      safe(fetchAllOpps(MCA_PIPELINES[1], { status: 'won' })),
+    // Resto en paralelo (no compiten por rate limit GHL de opps)
+    const [smsMonth, smsTotal, smsToday, callsTotal, callsMonth, noShows, leadsActive] = await Promise.all([
       safe(fetchSmsTotal(monthStartStr, todayStr)),
       safe(fetchSmsTotal(SINCE, todayStr)),
       safe(fetchSmsTotal(todayStr, tomorrowStr)),
@@ -188,8 +194,8 @@ export default async function handler(req, res) {
       safe(fetchLeadsEnSecuencia()),
     ]);
 
-    // Dedup + filter by wonAt
-    const wonMap = dedupByContact([...(wonRise ?? []), ...(wonNcn ?? [])]);
+    // Dedup + conteo
+    const wonMap = dedupByContact(allWonOpps);
     let ltsTotal = 0, ltsMonth = 0;
     for (const o of wonMap.values()) {
       const wonAt = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
@@ -199,22 +205,15 @@ export default async function handler(req, res) {
 
     res.json({
       since: SINCE,
-      // Leads en secuencia (activos en workflows MCA)
       leadsActive,
-      // LTs
       ltsTotal, ltsMonth,
-      // SMS (blasteados)
       smsTotal, smsMonth, smsToday,
-      // Llamadas
       callsTotal, callsMonth,
-      // No shows
       noShows,
-      // Rates (total)
-      rateSmsCall:  callsTotal && smsTotal  ? callsTotal  / smsTotal  : null,
-      rateCallLt:   ltsTotal  && callsTotal ? ltsTotal    / callsTotal : null,
-      // Rates (mes)
-      rateSmsCallMonth: callsMonth && smsMonth ? callsMonth / smsMonth : null,
-      rateCallLtMonth:  ltsMonth  && callsMonth ? ltsMonth  / callsMonth : null,
+      rateSmsCall:      callsTotal && smsTotal  ? callsTotal  / smsTotal  : null,
+      rateCallLt:       ltsTotal  && callsTotal ? ltsTotal    / callsTotal : null,
+      rateSmsCallMonth: callsMonth && smsMonth  ? callsMonth  / smsMonth  : null,
+      rateCallLtMonth:  ltsMonth  && callsMonth ? ltsMonth    / callsMonth : null,
       monthLabel: now.toLocaleString('es-CL', { month: 'long', year: 'numeric' }),
     });
   } catch (e) {

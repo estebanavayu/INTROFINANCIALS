@@ -16,6 +16,35 @@ const REPS = {
   sara:   'T7N31x5q1gUckaANYMoM',
 };
 
+// ── Helpers ──────────────────────────────────────────────────
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchSafe(url, opts, timeoutMs = 12000, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, { ...opts, signal: ctrl.signal });
+      if (r.status === 429) {
+        const wait = parseInt(r.headers.get('Retry-After') ?? '8') * 1000;
+        await sleep(wait || 8000);
+        continue;
+      }
+      if (r.status >= 500) { await sleep(1500 * (i + 1)); continue; }
+      return r;
+    } catch (e) {
+      if (e.name === 'AbortError' && i === retries - 1) throw new Error(`Timeout: ${url}`);
+      if (i < retries - 1) await sleep(1500 * (i + 1));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error(`fetchSafe agotó reintentos: ${url}`);
+}
+
+const safe = (p) => Promise.resolve(p).catch(() => null);
+
 function ghlHdrs() {
   return {
     Authorization: `Bearer ${process.env.GHL_TOKEN}`,
@@ -28,47 +57,41 @@ function sbHdrs(extra = {}) {
   return { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, ...extra };
 }
 
-async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-async function fetchSafe(url, opts, timeoutMs = 12000, retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    const ctrl  = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const r = await fetch(url, { ...opts, signal: ctrl.signal });
-      if (r.status === 429) {
-        const wait = parseInt(r.headers.get('Retry-After') ?? '5') * 1000;
-        await sleep(wait || 5000);
-        continue;
-      }
-      return r;
-    } catch (e) {
-      if (e.name === 'AbortError' && i === retries - 1) throw new Error(`Timeout: ${url}`);
-      if (i < retries - 1) await sleep(1500 * (i + 1));
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw new Error(`fetchSafe failed after ${retries} retries: ${url}`);
-}
-
-// Trae TODOS los opps de un pipeline (sin filtro de status = incluye open+won+lost)
+// Trae TODOS los opps (todos los statuses) de un pipeline
 async function fetchAllOpps(pipelineId) {
   const all = [];
-  let page = 1;
+  let page  = 1;
   while (true) {
-    const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, limit: 100, page }).toString();
-    const res = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: ghlHdrs() });
-    const d   = await res.json().catch(() => ({}));
-    const opps = d.opportunities ?? [];
+    const qs = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipelineId, limit: 100, page }).toString();
+    let data;
+    try {
+      const res = await fetchSafe(`${GHL_V2}/opportunities/search?${qs}`, { headers: ghlHdrs() });
+      data = await res.json().catch(() => ({}));
+    } catch (e) {
+      console.error(`fetchAllOpps ${pipelineId} p${page}: ${e.message}`);
+      break;
+    }
+    const opps = data.opportunities ?? [];
     all.push(...opps);
-    if (all.length >= (d.meta?.total ?? 0) || !opps.length) break;
+    if (all.length >= (data.meta?.total ?? 0) || !opps.length) break;
     page++;
+    await sleep(250);
   }
   return all;
 }
 
-// Conteo de conversaciones GHL asignadas a un rep (proxy SMS = contactos asignados)
+// Fetch ambos pipelines MCA SECUENCIALMENTE
+async function fetchAllMcaOpps() {
+  const all = [];
+  for (const pid of MCA_PIPELINES) {
+    const opps = await safe(fetchAllOpps(pid)) ?? [];
+    all.push(...opps);
+    await sleep(400);
+  }
+  return all;
+}
+
+// Conteo de conversaciones GHL asignadas a un rep
 async function fetchConvCount(userId) {
   try {
     const qs  = new URLSearchParams({ locationId: GHL_LOC, assignedTo: userId, limit: 1 }).toString();
@@ -78,11 +101,11 @@ async function fetchConvCount(userId) {
   } catch { return null; }
 }
 
-// Cuenta call_records ≥30s en Supabase para un set de contactIds
+// Cuenta call_records ≥30s en Supabase para un set de contactIds — batch de 200
 async function fetchCallsForContacts(contactIds, startISO, endISO) {
   if (!SB_URL || !SB_KEY || !contactIds.length) return 0;
   const BATCH = 200;
-  let total = 0;
+  let total   = 0;
   for (let i = 0; i < contactIds.length; i += BATCH) {
     const ids = contactIds.slice(i, i + BATCH);
     const qs  = new URLSearchParams({ select: 'id', status: 'eq.completed', duration: 'gte.30' });
@@ -90,16 +113,17 @@ async function fetchCallsForContacts(contactIds, startISO, endISO) {
     qs.append('date_added',  `lte.${endISO}`);
     qs.append('contact_id',  `in.(${ids.join(',')})`);
     try {
-      const r = await fetchSafe(`${SB_URL}/rest/v1/call_records?${qs}`, {
+      const r  = await fetchSafe(`${SB_URL}/rest/v1/call_records?${qs}`, {
         headers: sbHdrs({ Prefer: 'count=exact', Range: '0-0' }),
       });
-      const cr = r.headers.get('content-range');
-      const n  = parseInt(cr?.split('/')[1] ?? '0');
+      const n = parseInt(r.headers.get('content-range')?.split('/')[1] ?? '0');
       if (!isNaN(n)) total += n;
-    } catch { /* skip batch */ }
+    } catch { /* skip batch, sigue con el siguiente */ }
   }
   return total;
 }
+
+// ── Handler ──────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -113,66 +137,64 @@ export default async function handler(req, res) {
     const monthStartISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const nowISO        = now.toISOString();
 
-    // Traer todos los opps de ambos pipelines MCA (todos los statuses)
-    const [riseOpps, ncnOpps] = await Promise.all([
-      fetchAllOpps(MCA_PIPELINES[0]),
-      fetchAllOpps(MCA_PIPELINES[1]),
-    ]);
-
-    const allOpps = [...riseOpps, ...ncnOpps];
+    // SECUENCIAL: RISE → NCN
+    const allOpps = await fetchAllMcaOpps();
 
     // Agrupar por rep
-    const repData = {};
-    for (const [name, userId] of Object.entries(REPS)) {
-      const opps = allOpps.filter(o => o.assignedTo === userId);
+    const repContactIds = { camila: new Set(), maria: new Set(), sara: new Set() };
+    const repLtsTotal   = { camila: 0, maria: 0, sara: 0 };
+    const repLtsMonth   = { camila: 0, maria: 0, sara: 0 };
 
-      // LTs = won opps desde SINCE
-      const ltsTotal = opps.filter(o =>
-        o.status === 'won' && new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= sinceMS
-      ).length;
-      const ltsMonth = opps.filter(o =>
-        o.status === 'won' && new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= monthStartMS
-      ).length;
-
-      // ContactIds únicos de todos los opps del rep
-      const contactIds = [...new Set(opps.map(o => o.contactId).filter(Boolean))];
-
-      repData[name] = { userId, ltsTotal, ltsMonth, contactIds };
+    for (const o of allOpps) {
+      if (!o.contactId) continue;
+      for (const [name, userId] of Object.entries(REPS)) {
+        if (o.assignedTo !== userId) continue;
+        repContactIds[name].add(o.contactId);
+        if (o.status === 'won') {
+          const wonAt = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
+          if (wonAt >= sinceMS)     repLtsTotal[name]++;
+          if (wonAt >= monthStartMS) repLtsMonth[name]++;
+        }
+      }
     }
 
-    // Llamadas + SMS en paralelo para los 3 reps
-    const [camCalls, marCalls, sarCalls, camCallsM, marCallsM, sarCallsM,
-           camSms, marSms, sarSms] = await Promise.all([
-      fetchCallsForContacts(repData.camila.contactIds, sinceISO, nowISO),
-      fetchCallsForContacts(repData.maria.contactIds,  sinceISO, nowISO),
-      fetchCallsForContacts(repData.sara.contactIds,   sinceISO, nowISO),
-      fetchCallsForContacts(repData.camila.contactIds, monthStartISO, nowISO),
-      fetchCallsForContacts(repData.maria.contactIds,  monthStartISO, nowISO),
-      fetchCallsForContacts(repData.sara.contactIds,   monthStartISO, nowISO),
-      fetchConvCount(REPS.camila),
-      fetchConvCount(REPS.maria),
-      fetchConvCount(REPS.sara),
+    // Llamadas + convs en paralelo para los 3 reps (Supabase no tiene rate limit GHL)
+    const repNames = ['camila', 'maria', 'sara'];
+    const contactArrays = repNames.map(n => [...repContactIds[n]]);
+
+    const [c0, c1, c2, cm0, cm1, cm2, s0, s1, s2] = await Promise.all([
+      safe(fetchCallsForContacts(contactArrays[0], sinceISO, nowISO)),
+      safe(fetchCallsForContacts(contactArrays[1], sinceISO, nowISO)),
+      safe(fetchCallsForContacts(contactArrays[2], sinceISO, nowISO)),
+      safe(fetchCallsForContacts(contactArrays[0], monthStartISO, nowISO)),
+      safe(fetchCallsForContacts(contactArrays[1], monthStartISO, nowISO)),
+      safe(fetchCallsForContacts(contactArrays[2], monthStartISO, nowISO)),
+      safe(fetchConvCount(REPS.camila)),
+      safe(fetchConvCount(REPS.maria)),
+      safe(fetchConvCount(REPS.sara)),
     ]);
 
-    const calls  = { camila: camCalls, maria: marCalls, sara: sarCalls };
-    const callsM = { camila: camCallsM, maria: marCallsM, sara: sarCallsM };
-    const sms    = { camila: camSms,   maria: marSms,   sara: sarSms };
+    const callsTotal  = [c0 ?? 0, c1 ?? 0, c2 ?? 0];
+    const callsMonth  = [cm0 ?? 0, cm1 ?? 0, cm2 ?? 0];
+    const smsTotal    = [s0, s1, s2];
 
     const results = {};
-    for (const name of ['camila', 'maria', 'sara']) {
-      const { ltsTotal, ltsMonth } = repData[name];
-      const c  = calls[name];
-      const cm = callsM[name];
-      const s  = sms[name];
+    for (let i = 0; i < repNames.length; i++) {
+      const name = repNames[i];
+      const lt   = repLtsTotal[name];
+      const ltM  = repLtsMonth[name];
+      const c    = callsTotal[i];
+      const cM   = callsMonth[i];
+      const s    = smsTotal[i];
       results[name] = {
-        ltsTotal,
-        ltsMonth,
-        callsTotal: c,
-        callsMonth: cm,
-        smsTotal:   s,
+        ltsTotal:        lt,
+        ltsMonth:        ltM,
+        callsTotal:      c,
+        callsMonth:      cM,
+        smsTotal:        s,
         rateSmsCall:     s && c ? c / s : null,
-        rateCallLt:      c     ? ltsTotal / c : null,
-        rateCallLtMonth: cm    ? ltsMonth / cm : null,
+        rateCallLt:      c     ? lt  / c  : null,
+        rateCallLtMonth: cM    ? ltM / cM : null,
       };
     }
 
