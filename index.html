@@ -787,11 +787,9 @@ async function loadMca() {
     document.getElementById('mca-calls-month').textContent   = fmt(d.callsMonth);
     document.getElementById('mca-lts-month').textContent     = fmt(d.ltsMonth);
 
-    // Tasas en footer (total + mes)
-    document.getElementById('mca-rate-sms').textContent       = pct(d.rateSmsCall);
-    document.getElementById('mca-rate-sms-month').textContent = pct(d.rateSmsCallMonth);
-    document.getElementById('mca-rate-lt').textContent        = pct(d.rateCallLt);
-    document.getElementById('mca-rate-lt-month').textContent  = pct(d.rateCallLtMonth);
+    // Tasas en footer (solo acumulado)
+    document.getElementById('mca-rate-sms').textContent = pct(d.rateSmsCall);
+    document.getElementById('mca-rate-lt').textContent  = pct(d.rateCallLt);
 
   } catch(e) { console.error('loadMca:', e); }
 }
