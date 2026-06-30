@@ -185,9 +185,15 @@ async function computeGlobals(D) {
   }
   const deduped = dedupByContact(allWon);
   let ltsTotal = 0, ltsMonth = 0;
+  const ltsByMonth = {};
   for (const o of deduped) {
     const t = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
-    if (t >= D.sinceMs)      ltsTotal++;
+    if (t >= D.sinceMs) {
+      ltsTotal++;
+      const d = new Date(o.lastStageChangeAt ?? o.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      ltsByMonth[key] = (ltsByMonth[key] ?? 0) + 1;
+    }
     if (t >= D.monthStartMs) ltsMonth++;
   }
   console.log(`[globals] LTs: ${ltsTotal} total, ${ltsMonth} mes`);
@@ -204,7 +210,7 @@ async function computeGlobals(D) {
   ]);
 
   return {
-    lts: ltsTotal, ltsMonth,
+    lts: ltsTotal, ltsMonth, ltsByMonth,
     calls: callsTotal, callsMonth,
     smsTotal, smsMonth, smsToday,
     optoutMonth, optoutToday,

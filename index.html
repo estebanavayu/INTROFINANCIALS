@@ -475,7 +475,19 @@
       </table>
     </div>
 
-    <p class="section-title" style="margin-top:20px">OPT-OUT RATE SMS</p>
+    <!-- ── Gráfico LTs por mes ── -->
+    <p class="section-title" style="margin-top:20px">LIVE TRANSFERS POR MES</p>
+    <div id="lt-chart-wrap" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 20px 10px;margin-bottom:20px;position:relative">
+      <div id="lt-chart-skeleton" style="height:180px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">Cargando…</div>
+      <svg id="lt-chart-svg" style="display:none;width:100%;overflow:visible" viewBox="0 0 760 180" preserveAspectRatio="none"></svg>
+      <!-- tooltip -->
+      <div id="lt-tooltip" style="display:none;position:absolute;background:#1e2135;border:1px solid var(--border);border-radius:8px;padding:8px 12px;pointer-events:none;font-size:12px;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5)">
+        <div id="lt-tooltip-label" style="color:var(--muted);margin-bottom:2px;font-size:10px"></div>
+        <div id="lt-tooltip-val" style="font-weight:700;font-size:16px;color:#22c55e"></div>
+      </div>
+    </div>
+
+    <p class="section-title" style="margin-top:0">OPT-OUT RATE SMS</p>
     <div class="kpi-grid">
       <div class="kpi-card" id="card-optout-today" style="border-color:rgba(239,68,68,0.2)">
         <div class="kpi-label" style="color:#f87171">Opt-out rate · Hoy</div>
@@ -757,8 +769,121 @@ async function loadGlobals() {
     if (d.optoutRateToday != null) {
       applyOptOutCard('g-optout-today', 'g-optout-today-sub', 'card-optout-today', d.optoutRateToday * 100, d.optoutToday, d.smsToday, 'hoy');
     }
+    if (d.ltsByMonth) renderLtChart(d.ltsByMonth);
     setCacheFooter(d._cache);
   } catch(e) {}
+}
+
+function renderLtChart(ltsByMonth) {
+  const SVG_W = 760, SVG_H = 180;
+  const PAD_L = 36, PAD_R = 12, PAD_T = 16, PAD_B = 38;
+  const plotW = SVG_W - PAD_L - PAD_R;
+  const plotH = SVG_H - PAD_T - PAD_B;
+
+  // Generar todos los meses desde Feb 2026 hasta el mes actual
+  const now   = new Date();
+  const start = new Date(2026, 1, 1); // Feb 2026
+  const months = [];
+  let cur = new Date(start);
+  while (cur <= now) {
+    const key = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`;
+    months.push(key);
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+  }
+
+  const values  = months.map(m => ltsByMonth[m] ?? 0);
+  const maxVal  = Math.max(...values, 1);
+  const n       = months.length;
+  const barGap  = 6;
+  const barW    = Math.max(8, (plotW - barGap * (n + 1)) / n);
+
+  const MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const monthLabel  = key => { const [,m] = key.split('-'); return MONTH_SHORT[parseInt(m,10)-1]; };
+
+  // Líneas de referencia (3 niveles)
+  const gridLines = [Math.round(maxVal*0.33), Math.round(maxVal*0.66), maxVal];
+
+  let svgContent = `<defs>
+    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#22c55e" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#16a34a" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="barGradHov" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#4ade80" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#22c55e" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>`;
+
+  // Grid lines
+  for (const g of gridLines) {
+    const y = PAD_T + plotH - (g / maxVal) * plotH;
+    svgContent += `<line x1="${PAD_L}" y1="${y.toFixed(1)}" x2="${SVG_W - PAD_R}" y2="${y.toFixed(1)}" stroke="#2e3250" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="${PAD_L - 6}" y="${(y+4).toFixed(1)}" fill="#6b7280" font-size="9" text-anchor="end">${g}</text>`;
+  }
+
+  // Barras
+  for (let i = 0; i < n; i++) {
+    const v     = values[i];
+    const bh    = Math.max(2, (v / maxVal) * plotH);
+    const x     = PAD_L + barGap + i * (barW + barGap);
+    const y     = PAD_T + plotH - bh;
+    const label = monthLabel(months[i]);
+    const isCur = months[i] === `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+    svgContent += `<rect class="lt-bar" data-month="${months[i]}" data-val="${v}"
+      x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}"
+      rx="3" ry="3" fill="${isCur ? 'url(#barGradHov)' : 'url(#barGrad)'}"
+      opacity="${isCur ? '1' : '0.75'}"
+      style="cursor:pointer;transition:opacity 0.15s"/>`;
+
+    // Valor encima de la barra (solo si hay espacio)
+    if (bh > 22) {
+      svgContent += `<text x="${(x + barW/2).toFixed(1)}" y="${(y - 5).toFixed(1)}" fill="#e8eaf6" font-size="9" text-anchor="middle" font-weight="600">${v}</text>`;
+    }
+
+    // Label mes debajo
+    svgContent += `<text x="${(x + barW/2).toFixed(1)}" y="${(PAD_T + plotH + 16).toFixed(1)}" fill="${isCur ? '#e8eaf6' : '#6b7280'}" font-size="9" text-anchor="middle">${label}</text>`;
+  }
+
+  // Eje X
+  svgContent += `<line x1="${PAD_L}" y1="${(PAD_T+plotH).toFixed(1)}" x2="${SVG_W-PAD_R}" y2="${(PAD_T+plotH).toFixed(1)}" stroke="#2e3250" stroke-width="1"/>`;
+
+  const svg   = document.getElementById('lt-chart-svg');
+  const skel  = document.getElementById('lt-chart-skeleton');
+  const tip   = document.getElementById('lt-tooltip');
+  const tipL  = document.getElementById('lt-tooltip-label');
+  const tipV  = document.getElementById('lt-tooltip-val');
+  const wrap  = document.getElementById('lt-chart-wrap');
+
+  svg.innerHTML = svgContent;
+  svg.style.display = 'block';
+  skel.style.display = 'none';
+
+  // Tooltips con hover
+  svg.querySelectorAll('.lt-bar').forEach(bar => {
+    bar.addEventListener('mouseenter', e => {
+      bar.setAttribute('opacity', '1');
+      const mKey = bar.dataset.month;
+      const [yr, mo] = mKey.split('-');
+      tipL.textContent = `${MONTH_SHORT[parseInt(mo,10)-1]} ${yr}`;
+      tipV.textContent = `${bar.dataset.val} LTs`;
+      tip.style.display = 'block';
+    });
+    bar.addEventListener('mousemove', e => {
+      const rect = wrap.getBoundingClientRect();
+      let left = e.clientX - rect.left + 12;
+      let top  = e.clientY - rect.top  - 52;
+      if (left + 130 > wrap.offsetWidth) left = e.clientX - rect.left - 130;
+      tip.style.left = left + 'px';
+      tip.style.top  = top  + 'px';
+    });
+    bar.addEventListener('mouseleave', () => {
+      const mKey = bar.dataset.month;
+      const isCur = mKey === `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      bar.setAttribute('opacity', isCur ? '1' : '0.75');
+      tip.style.display = 'none';
+    });
+  });
 }
 
 // ── MCA Funnel ───────────────────────────────────────────────
