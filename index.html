@@ -864,6 +864,16 @@ async function loadGlobals() {
 
 let _metricsByMonth = {};
 
+function fillDetailPanel(mKey, v) {
+  const mb    = _metricsByMonth[mKey] ?? {};
+  const calls = mb.calls ?? null;
+  const sms   = mb.sms   ?? null;
+  document.getElementById('lt-detail-calls').textContent    = calls != null ? calls.toLocaleString() : '—';
+  document.getElementById('lt-detail-sms').textContent      = sms   != null ? sms.toLocaleString()   : '—';
+  document.getElementById('lt-detail-sms-call').textContent = (sms && calls) ? (calls/sms*100).toFixed(2)+'%' : '—';
+  document.getElementById('lt-detail-call-lt').textContent  = (calls && v)   ? (v/calls*100).toFixed(2)+'%'   : '—';
+}
+
 async function loadLtHistory() {
   const skel = document.getElementById('lt-chart-skeleton');
   if (skel) skel.textContent = 'Consultando GHL…';
@@ -871,7 +881,15 @@ async function loadLtHistory() {
     const r = await fetch('/api/lt-history');
     if (!r.ok) { if (skel) skel.textContent = 'Error al cargar.'; return; }
     const d = await r.json();
-    if (d.metricsByMonth) _metricsByMonth = d.metricsByMonth;
+    if (d.metricsByMonth) {
+      _metricsByMonth = d.metricsByMonth;
+      // Si el panel ya está abierto con un mes seleccionado, actualizar los datos
+      const detail = document.getElementById('lt-month-detail');
+      const selBar = detail && detail.style.display !== 'none'
+        ? document.querySelector('.lt-bar[stroke]')
+        : null;
+      if (selBar) fillDetailPanel(selBar.dataset.month, parseInt(selBar.dataset.val, 10));
+    }
     if (d.ltsByMonth) renderLtChart(d.ltsByMonth);
     else if (skel) skel.textContent = 'Sin datos.';
   } catch(e) { if (skel) skel.textContent = 'Error al cargar.'; }
@@ -1019,18 +1037,9 @@ function renderLtChart(ltsByMonth) {
       // Populate panel
       document.getElementById('lt-detail-label').textContent = label.toUpperCase();
       document.getElementById('lt-detail-lts').textContent   = v;
+      document.getElementById('lt-detail-cur').textContent   = isCur ? '(mes en curso)' : '';
 
-      // Desglose completo solo desde junio 2026
-      const hasBreakdown = mKey >= '2026-06' && _metricsByMonth[mKey];
-      const mb = _metricsByMonth[mKey] ?? {};
-      const calls = mb.calls ?? null;
-      const sms   = mb.sms   ?? null;
-
-      document.getElementById('lt-detail-calls').textContent   = calls != null ? calls.toLocaleString() : '—';
-      document.getElementById('lt-detail-sms').textContent     = sms   != null ? sms.toLocaleString()   : '—';
-      document.getElementById('lt-detail-sms-call').textContent = (sms && calls) ? (calls/sms*100).toFixed(2)+'%' : '—';
-      document.getElementById('lt-detail-call-lt').textContent  = (calls && v)   ? (v/calls*100).toFixed(2)+'%'  : '—';
-      document.getElementById('lt-detail-cur').textContent      = isCur ? '(mes en curso)' : '';
+      if (mKey >= '2026-06') fillDetailPanel(mKey, v);
 
       detail.style.display = 'block';
     });
