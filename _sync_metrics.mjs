@@ -327,20 +327,31 @@ function countRepCallNowFromData(repId, fieldId, generalOpps) {
 async function computeMcaReps(D, allOppsByPipeline, meta) {
   const allOpps = MCA_PIPELINES.flatMap(pid => allOppsByPipeline[pid] ?? []);
 
+  // Dedup won opps por contactId (mismo criterio que globals) — evita doble conteo
+  // cuando el mismo contact está won en GENERAL y RISE
+  const wonDeduped = dedupByContact(allOpps.filter(o => o.status === 'won'));
+
   const ids   = { camila: new Set(), maria: new Set(), sara: new Set() };
   const ltTot = { camila: 0, maria: 0, sara: 0 };
   const ltMon = { camila: 0, maria: 0, sara: 0 };
 
+  // Usar deduped para LT counts, allOpps para contact IDs (para llamadas)
+  for (const o of wonDeduped) {
+    if (!o.contactId) continue;
+    for (const [name, userId] of Object.entries(REPS)) {
+      if (o.assignedTo !== userId) continue;
+      const t = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
+      if (t >= D.sinceMs)      { ltTot[name]++; ids[name].add(o.contactId); }
+      if (t >= D.monthStartMs) ltMon[name]++;
+    }
+  }
+
+  // Para contact IDs (llamadas): incluir también opps open del rep
   for (const o of allOpps) {
     if (!o.contactId) continue;
     for (const [name, userId] of Object.entries(REPS)) {
       if (o.assignedTo !== userId) continue;
       ids[name].add(o.contactId);
-      if (o.status === 'won') {
-        const t = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
-        if (t >= D.sinceMs)      ltTot[name]++;
-        if (t >= D.monthStartMs) ltMon[name]++;
-      }
     }
   }
   console.log('[mca_reps] LTs:', JSON.stringify(ltTot));
