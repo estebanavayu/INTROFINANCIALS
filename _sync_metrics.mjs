@@ -400,6 +400,58 @@ async function computeMcaReps(D, allOppsByPipeline, meta) {
   return result;
 }
 
+// ── Métricas mensuales (desde junio 2026) ────────────────────
+
+async function computeMonthlyBreakdown(wonOppsByPipeline) {
+  const DESDE  = '2026-06';
+  const now    = new Date();
+  const curKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  // Generar lista de meses desde junio hasta el actual
+  const months = [];
+  let d = new Date('2026-06-01');
+  while (true) {
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    months.push(key);
+    if (key >= curKey) break;
+    d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  }
+
+  // LTs por mes desde los won opps (todos los pipelines, deduplicados)
+  const allWon  = PIPELINES_ALL.flatMap(pid => wonOppsByPipeline[pid] ?? []);
+  const deduped = dedupByContact(allWon);
+  const ltsByM  = {};
+  for (const o of deduped) {
+    const t   = new Date(o.lastStageChangeAt ?? o.createdAt);
+    const key = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
+    if (key >= DESDE) ltsByM[key] = (ltsByM[key] ?? 0) + 1;
+  }
+
+  const result = {};
+  for (const month of months) {
+    const [yr, mo] = month.split('-').map(Number);
+    const start     = new Date(yr, mo - 1, 1);
+    const nextMonth = new Date(yr, mo, 1);
+    const startStr  = `${yr}-${String(mo).padStart(2,'0')}-01`;
+    const endStr    = nextMonth.toISOString().slice(0, 10);
+    const startISO  = start.toISOString();
+    const isCurrent = month === curKey;
+    const endISO    = isCurrent ? now.toISOString() : nextMonth.toISOString();
+    const smsEnd    = isCurrent ? now.toISOString().slice(0, 10) : endStr;
+
+    const [sms, calls] = await Promise.all([
+      fetchSmsTotal(startStr, smsEnd),
+      fetchCallsSb(startISO, endISO),
+    ]);
+
+    result[month] = { lts: ltsByM[month] ?? 0, sms: sms ?? 0, calls: calls ?? 0 };
+    console.log(`  [monthly] ${month}: lts=${result[month].lts} sms=${sms} calls=${calls}`);
+    await sleep(500);
+  }
+
+  return result;
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
@@ -472,6 +524,14 @@ async function main() {
     const r = await computeMcaReps(D, allOppsByPipeline, meta);
     await writeCache('metrics_mca_reps', r);
   } catch (e) { console.error('[mca_reps] ERROR:', e.message); exitCode = 1; }
+
+  await sleep(600);
+
+  // ── Desglose mensual (desde jun 2026) ──
+  try {
+    const mb = await computeMonthlyBreakdown(wonOppsByPipeline);
+    await writeCache('metrics_by_month', mb);
+  } catch (e) { console.error('[monthly] ERROR:', e.message); }
 
   console.log(`\n✓ sync_metrics completado (exit=${exitCode})`);
   process.exit(exitCode);

@@ -544,12 +544,31 @@
     </div>
     <!-- Panel de desglose mensual (aparece al hacer click en una barra) -->
     <div id="lt-month-detail" style="display:none;margin-top:10px;background:#1a1d35;border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;position:relative">
-      <button onclick="document.getElementById('lt-month-detail').style.display='none';document.querySelectorAll('.lt-bar').forEach(b=>b.removeAttribute('stroke'))" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1">×</button>
-      <div id="lt-detail-label" style="color:var(--muted);font-size:11px;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em"></div>
-      <div style="display:flex;gap:28px;align-items:baseline">
-        <div><span style="color:#22c55e;font-size:26px;font-weight:700" id="lt-detail-lts">—</span><span style="color:var(--muted);font-size:11px;margin-left:4px">LTs</span></div>
-        <div id="lt-detail-extra" style="color:var(--muted);font-size:12px"></div>
+      <button onclick="document.getElementById('lt-month-detail').style.display='none';document.querySelectorAll('.lt-bar').forEach(b=>{b.removeAttribute('stroke');b.removeAttribute('stroke-width')})" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1">×</button>
+      <div id="lt-detail-label" style="color:var(--muted);font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em"></div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
+        <div style="background:#0f1124;border-radius:8px;padding:10px 8px;text-align:center">
+          <div style="color:#22c55e;font-size:22px;font-weight:700" id="lt-detail-lts">—</div>
+          <div style="color:var(--muted);font-size:10px;margin-top:2px">Live Transfers</div>
+        </div>
+        <div style="background:#0f1124;border-radius:8px;padding:10px 8px;text-align:center">
+          <div style="color:#e8eaf6;font-size:22px;font-weight:700" id="lt-detail-calls">—</div>
+          <div style="color:var(--muted);font-size:10px;margin-top:2px">Llamadas</div>
+        </div>
+        <div style="background:#0f1124;border-radius:8px;padding:10px 8px;text-align:center">
+          <div style="color:#e8eaf6;font-size:22px;font-weight:700" id="lt-detail-sms">—</div>
+          <div style="color:var(--muted);font-size:10px;margin-top:2px">SMS Blasteados</div>
+        </div>
+        <div style="background:#0f1124;border-radius:8px;padding:10px 8px;text-align:center">
+          <div style="color:#60a5fa;font-size:22px;font-weight:700" id="lt-detail-sms-call">—</div>
+          <div style="color:var(--muted);font-size:10px;margin-top:2px">Tasa SMS→Call</div>
+        </div>
+        <div style="background:#0f1124;border-radius:8px;padding:10px 8px;text-align:center">
+          <div style="color:#a78bfa;font-size:22px;font-weight:700" id="lt-detail-call-lt">—</div>
+          <div style="color:var(--muted);font-size:10px;margin-top:2px">Tasa Call→LT</div>
+        </div>
       </div>
+      <div id="lt-detail-cur" style="color:var(--muted);font-size:11px;margin-top:8px;text-align:right"></div>
     </div>
   </div>
 
@@ -843,6 +862,8 @@ async function loadGlobals() {
   } catch(e) {}
 }
 
+let _metricsByMonth = {};
+
 async function loadLtHistory() {
   const skel = document.getElementById('lt-chart-skeleton');
   if (skel) skel.textContent = 'Consultando GHL…';
@@ -850,6 +871,7 @@ async function loadLtHistory() {
     const r = await fetch('/api/lt-history');
     if (!r.ok) { if (skel) skel.textContent = 'Error al cargar.'; return; }
     const d = await r.json();
+    if (d.metricsByMonth) _metricsByMonth = d.metricsByMonth;
     if (d.ltsByMonth) renderLtChart(d.ltsByMonth);
     else if (skel) skel.textContent = 'Sin datos.';
   } catch(e) { if (skel) skel.textContent = 'Error al cargar.'; }
@@ -997,7 +1019,19 @@ function renderLtChart(ltsByMonth) {
       // Populate panel
       document.getElementById('lt-detail-label').textContent = label.toUpperCase();
       document.getElementById('lt-detail-lts').textContent   = v;
-      document.getElementById('lt-detail-extra').textContent = isCur ? '(mes en curso)' : '';
+
+      // Desglose completo solo desde junio 2026
+      const hasBreakdown = mKey >= '2026-06' && _metricsByMonth[mKey];
+      const mb = _metricsByMonth[mKey] ?? {};
+      const calls = mb.calls ?? null;
+      const sms   = mb.sms   ?? null;
+
+      document.getElementById('lt-detail-calls').textContent   = calls != null ? calls.toLocaleString() : '—';
+      document.getElementById('lt-detail-sms').textContent     = sms   != null ? sms.toLocaleString()   : '—';
+      document.getElementById('lt-detail-sms-call').textContent = (sms && calls) ? (calls/sms*100).toFixed(2)+'%' : '—';
+      document.getElementById('lt-detail-call-lt').textContent  = (calls && v)   ? (v/calls*100).toFixed(2)+'%'  : '—';
+      document.getElementById('lt-detail-cur').textContent      = isCur ? '(mes en curso)' : '';
+
       detail.style.display = 'block';
     });
   });
