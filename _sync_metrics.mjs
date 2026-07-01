@@ -23,8 +23,9 @@ const PIPELINES_ALL = [
   'tzoH6Bv4qfC4Rug8yZvQ', // NCN OPENING
   '8tbkIiJnJCnPZY6X0mA6', // CENTURY OPENING (CC)
 ];
-const MCA_PIPELINES   = PIPELINES_ALL.slice(0, 2);
+const MCA_PIPELINES   = PIPELINES_ALL.slice(0, 2); // RISE + NCN
 const GENERAL_OPENING = 'fxzuSpmyNzMH4yupNfk1';
+const ALL_MCA_PIPELINES = [GENERAL_OPENING, ...MCA_PIPELINES]; // GENERAL + RISE + NCN
 
 const REPS = {
   camila: 'KDgmtLyZD3R4OiahkpSH',
@@ -216,7 +217,7 @@ async function computeGlobals(D, wonOppsByPipeline) {
   };
 }
 
-async function computeMca(D, wonOppsByPipeline) {
+async function computeMca(D, wonOppsByPipeline, allOppsByPipeline, meta) {
   const allWon  = MCA_PIPELINES.flatMap(pid => wonOppsByPipeline[pid] ?? []);
   const deduped = dedupByContact(allWon);
   let ltsTotal = 0, ltsMonth = 0;
@@ -227,24 +228,11 @@ async function computeMca(D, wonOppsByPipeline) {
   }
   console.log(`[mca] LTs: ${ltsTotal} total, ${ltsMonth} mes`);
 
-  await sleep(500);
-  const pipRes  = await ghlFetch(`${GHL_V2}/opportunities/pipelines?locationId=${GHL_LOC}`);
-  const pipData = await pipRes.json().catch(() => ({}));
-  const genPip  = (pipData.pipelines ?? []).find(p => p.id === GENERAL_OPENING);
-  let noShows = 0;
-  for (const s of (genPip?.stages ?? []).filter(s => /no[\s_-]?show/i.test(s.name))) {
-    const qs = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: GENERAL_OPENING, pipeline_stage_id: s.id, limit: 1 });
-    const r  = await ghlFetch(`${GHL_V2}/opportunities/search?${qs}`);
-    const d  = await r.json().catch(() => ({}));
-    noShows += d.meta?.total ?? 0;
-    await sleep(300);
-  }
-
-  await sleep(300);
-  const leadsQs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: GENERAL_OPENING, status: 'open', limit: 1 });
-  const leadsRes = await ghlFetch(`${GHL_V2}/opportunities/search?${leadsQs}`);
-  const leadsD   = await leadsRes.json().catch(() => ({}));
-  const leadsActive = leadsD.meta?.total ?? null;
+  // No-shows y leadsActive desde datos pre-fetched (sin GHL calls extra)
+  const genOpps    = allOppsByPipeline[GENERAL_OPENING] ?? [];
+  const noShows    = genOpps.filter(o => (meta.noShowStageIds ?? []).includes(o.pipelineStageId)).length;
+  const leadsActive = genOpps.filter(o => o.status === 'open').length;
+  console.log(`[mca] noShows=${noShows} leadsActive=${leadsActive}`);
 
   await sleep(400);
   const [smsTotal, smsMonth, smsToday, callsTotal, callsMonth] = await Promise.all([
@@ -274,78 +262,67 @@ const MCA_OPENING_PIPELINES = [
   { id: 'tzoH6Bv4qfC4Rug8yZvQ',  name: 'NCN'     },
 ];
 
-// Descubre IDs de stage "Llamada Agendada" (por pipeline) y campo "CALL NOW???"
-async function discoverGeneralOpeningMeta() {
-  const meta = { llamadaStageIds: {}, callNowFieldId: null };
+// Descubre y cachea metadata (stage IDs, field IDs) en Supabase — TTL 24h
+// Evita 2 GHL calls por run cuando el cache está fresco
+async function discoverAndCacheMeta() {
+  const cached = await readCache('metrics_meta');
+  if (cached?.value && cached.updated_at) {
+    const ageMs = Date.now() - new Date(cached.updated_at).getTime();
+    if (ageMs < 24 * 60 * 60 * 1000) {
+      console.log('  [meta] usando cache (age=' + Math.round(ageMs/3600000) + 'h)');
+      return cached.value;
+    }
+  }
 
-  // 1. Pipeline stages — busca "Llamada Agendada" en los 3 pipelines MCA opening
+  const meta = { llamadaStageIds: {}, callNowFieldId: null, noShowStageIds: [] };
+
   try {
-    const r   = await ghlFetch(`${GHL_V2}/opportunities/pipelines?locationId=${GHL_LOC}`);
-    const d   = await r.json().catch(() => ({}));
+    const r = await ghlFetch(`${GHL_V2}/opportunities/pipelines?locationId=${GHL_LOC}`);
+    const d = await r.json().catch(() => ({}));
     for (const { id, name } of MCA_OPENING_PIPELINES) {
       const pip = (d.pipelines ?? []).find(p => p.id === id);
       const st  = (pip?.stages ?? []).find(s => /llamada.?agendada/i.test(s.name));
-      if (st) {
-        meta.llamadaStageIds[id] = st.id;
-        console.log(`  [meta] Llamada Agendada en ${name}: ${st.id}`);
-      }
+      if (st) { meta.llamadaStageIds[id] = st.id; console.log(`  [meta] Llamada Agendada en ${name}: ${st.id}`); }
     }
-    if (!Object.keys(meta.llamadaStageIds).length) console.warn('  [meta] Stage "Llamada Agendada" no encontrado en ningún pipeline');
+    const genPip = (d.pipelines ?? []).find(p => p.id === GENERAL_OPENING);
+    meta.noShowStageIds = (genPip?.stages ?? []).filter(s => /no[\s_-]?show/i.test(s.name)).map(s => s.id);
+    console.log(`  [meta] noShowStageIds: ${meta.noShowStageIds.join(', ') || 'ninguno'}`);
   } catch(e) { console.warn('  [meta] error pipelines:', e.message); }
 
   await sleep(400);
 
-  // 2. Custom fields — busca "CALL NOW"
   try {
     const r  = await ghlFetch(`${GHL_V2}/custom-fields?locationId=${GHL_LOC}`);
     const d  = await r.json().catch(() => ({}));
     const cf = (d.customFields ?? []).find(f => /call.?now/i.test(f.name));
-    if (cf) { meta.callNowFieldId = cf.id; console.log(`  [meta] CALL NOW field: ${cf.id} (${cf.name})`); }
-    else    { console.warn('  [meta] Campo "CALL NOW" no encontrado'); }
+    if (cf) { meta.callNowFieldId = cf.id; console.log(`  [meta] CALL NOW field: ${cf.id}`); }
+    else    { console.warn('  [meta] Campo CALL NOW no encontrado'); }
   } catch(e) { console.warn('  [meta] error custom-fields:', e.message); }
 
+  await writeCache('metrics_meta', meta);
   return meta;
 }
 
-// Cuenta opps en "Llamada Agendada" sumando los 3 pipelines MCA para un rep
-async function countRepStage(repId, llamadaStageIds) {
+// Cuenta opps en "Llamada Agendada" desde datos pre-fetched (sin GHL calls)
+function countRepStageFromData(repId, llamadaStageIds, allOppsByPipeline) {
   if (!llamadaStageIds || !Object.keys(llamadaStageIds).length) return null;
   let total = 0;
   for (const [pipId, stageId] of Object.entries(llamadaStageIds)) {
-    try {
-      const qs = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: pipId, pipeline_stage_id: stageId, assignedTo: repId, limit: 1 });
-      const r  = await ghlFetch(`${GHL_V2}/opportunities/search?${qs}`);
-      const d  = await r.json().catch(() => ({}));
-      total   += d.meta?.total ?? 0;
-      await sleep(200);
-    } catch { /* sigue con el siguiente */ }
+    total += (allOppsByPipeline[pipId] ?? []).filter(o => o.assignedTo === repId && o.pipelineStageId === stageId).length;
   }
   return total;
 }
 
-// Cuenta opps con el campo "CALL NOW" set, asignados a un rep (pagina GENERAL OPENING)
-async function countRepCallNow(repId, fieldId) {
+// Cuenta opps con "CALL NOW" set, desde datos pre-fetched (sin GHL calls)
+function countRepCallNowFromData(repId, fieldId, generalOpps) {
   if (!fieldId) return null;
-  let count = 0, page = 1;
-  try {
-    while (true) {
-      const qs  = new URLSearchParams({ location_id: GHL_LOC, pipeline_id: GENERAL_OPENING, assignedTo: repId, status: 'open', limit: 100, page });
-      const r   = await ghlFetch(`${GHL_V2}/opportunities/search?${qs}`);
-      const d   = await r.json().catch(() => ({}));
-      const ops = d.opportunities ?? [];
-      for (const o of ops) {
-        const hasField = (o.customFields ?? []).some(f => f.id === fieldId && f.value != null && f.value !== '' && f.value !== false);
-        if (hasField) count++;
-      }
-      if (ops.length < 100 || count >= (d.meta?.total ?? 0)) break;
-      page++;
-      await sleep(300);
-    }
-    return count;
-  } catch { return null; }
+  return generalOpps
+    .filter(o => o.assignedTo === repId && o.status === 'open')
+    .filter(o => (o.customFields ?? []).some(f => f.id === fieldId && f.value != null && f.value !== '' && f.value !== false))
+    .length;
 }
 
-async function computeMcaReps(D, allOppsByPipeline) {
+async function computeMcaReps(D, allOppsByPipeline, meta) {
   const allOpps = MCA_PIPELINES.flatMap(pid => allOppsByPipeline[pid] ?? []);
 
   const ids   = { camila: new Set(), maria: new Set(), sara: new Set() };
@@ -394,22 +371,16 @@ async function computeMcaReps(D, allOppsByPipeline) {
     };
   }
 
-  // ── Call breakdown por rep (Scheduled + Call Now) ──────────
-  console.log('\n[mca_reps] Fetching call breakdown (Scheduled + Call Now)...');
-  await sleep(500);
-  const gMeta = await discoverGeneralOpeningMeta();
-  await sleep(400);
-
+  // ── Call breakdown por rep (Scheduled + Call Now) desde datos pre-fetched ──
+  const generalOpps = allOppsByPipeline[GENERAL_OPENING] ?? [];
   for (const n of names) {
     const userId = REPS[n];
-    await sleep(300);
-    const scheduled = await countRepStage(userId, gMeta.llamadaStageIds);
-    await sleep(300);
-    const callNow   = await countRepCallNow(userId, gMeta.callNowFieldId);
+    const scheduled = countRepStageFromData(userId, meta.llamadaStageIds, allOppsByPipeline);
+    const callNow   = countRepCallNowFromData(userId, meta.callNowFieldId, generalOpps);
     result[n].scheduled = scheduled;
     result[n].callNow   = callNow;
-    result[n].inbound   = null; // pendiente — definir fuente
-    result[n].coldCall  = null; // pendiente — definir fuente
+    result[n].inbound   = null;
+    result[n].coldCall  = null;
     console.log(`  [${n}] scheduled=${scheduled} callNow=${callNow}`);
   }
 
@@ -434,19 +405,33 @@ async function main() {
 
   let exitCode = 0;
 
+  // ── Metadata (stage IDs, field IDs) — cacheada 24h en Supabase ──
+  // Solo hace 2 GHL calls si el cache está vencido (1x al día)
+  console.log('\n[meta] Obteniendo metadata pipeline...');
+  let meta = { llamadaStageIds: {}, callNowFieldId: null, noShowStageIds: [] };
+  try { meta = await discoverAndCacheMeta(); } catch(e) { console.warn('[meta] ERROR (continúa con meta vacía):', e.message); }
+
+  await sleep(500);
+
   // ── Fetch único de opps (compartido entre globals/mca/mca_reps) ──
   console.log('\n[fetch] Fetching won opps por pipeline (fetch único)...');
   const wonOppsByPipeline = {};
-  for (const pid of PIPELINES_ALL) {
-    wonOppsByPipeline[pid] = await fetchWonOpps(pid);
-    await sleep(800);
+  try {
+    for (const pid of PIPELINES_ALL) {
+      wonOppsByPipeline[pid] = await fetchWonOpps(pid);
+      await sleep(600);
+    }
+  } catch(e) {
+    console.warn('\n[fetch] Rate limit persistente al inicio — token agotado, se omite este ciclo.');
+    console.warn('  El cache de Supabase conserva los valores del último run exitoso.');
+    process.exit(0); // salida graceful: GH Actions no marca como failure
   }
 
-  console.log('\n[fetch] Fetching ALL opps para rep contact IDs...');
+  console.log('\n[fetch] Fetching ALL opps (GENERAL+RISE+NCN) para stage/callnow/noshows...');
   const allOppsByPipeline = {};
-  for (const pid of MCA_PIPELINES) {
+  for (const pid of ALL_MCA_PIPELINES) {
     allOppsByPipeline[pid] = await fetchAllOpps(pid);
-    await sleep(800);
+    await sleep(600);
   }
 
   // ── Globals ──
@@ -461,7 +446,7 @@ async function main() {
 
   // ── MCA ──
   try {
-    const m    = await computeMca(D, wonOppsByPipeline);
+    const m    = await computeMca(D, wonOppsByPipeline, allOppsByPipeline, meta);
     const prev = await readCache('metrics_mca');
     if (!sanityOk(m.ltsTotal, prev?.value?.ltsTotal, 'mca.ltsTotal')) { exitCode = 1; }
     else await writeCache('metrics_mca', m);
@@ -471,7 +456,7 @@ async function main() {
 
   // ── MCA Reps ──
   try {
-    const r = await computeMcaReps(D, allOppsByPipeline);
+    const r = await computeMcaReps(D, allOppsByPipeline, meta);
     await writeCache('metrics_mca_reps', r);
   } catch (e) { console.error('[mca_reps] ERROR:', e.message); exitCode = 1; }
 
