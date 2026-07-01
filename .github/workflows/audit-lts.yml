@@ -1,0 +1,14 @@
+name: Audit LTs Mes
+on: workflow_dispatch
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run audit LTs
+        env:
+          GHL_TOKEN_IF: ${{ secrets.GHL_TOKEN_IF }}
+        run: node _audit_lts_today.mjs
