@@ -58,24 +58,26 @@ async function upsertCalls(records) {
 
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchWithRetry(url, opts, retries = 3) {
+class RateLimitError extends Error { constructor() { super('RATE_LIMIT'); } }
+
+async function fetchWithRetry(url, opts, retries = 6) {
   for (let i = 0; i < retries; i++) {
-    try {
-      const r = await fetch(url, opts);
-      if (r.status === 429) { // rate limit
-        const wait = parseInt(r.headers.get('Retry-After') ?? '10') * 1000;
-        console.warn(`Rate limit, esperando ${wait}ms...`);
-        await sleep(wait);
-        continue;
-      }
-      if (r.status >= 500) throw new Error(`HTTP ${r.status}`);
-      return r;
-    } catch (e) {
-      if (i === retries - 1) throw e;
-      console.warn(`Intento ${i+1} fallido: ${e.message}. Reintentando...`);
-      await sleep(2000 * (i + 1));
+    const r = await fetch(url, opts).catch(e => { throw e; });
+    if (r.status === 429) {
+      if (i === retries - 1) throw new RateLimitError();
+      const wait = Math.max(parseInt(r.headers.get('Retry-After') ?? '10', 10) * 1000, 12000) * (1 + i * 0.5);
+      console.warn(`Rate limit (intento ${i+1}/${retries}), esperando ${Math.round(wait/1000)}s...`);
+      await sleep(wait);
+      continue;
     }
+    if (r.status >= 500) {
+      if (i === retries - 1) throw new Error(`HTTP ${r.status}`);
+      await sleep(3000 * (i + 1));
+      continue;
+    }
+    return r;
   }
+  throw new RateLimitError();
 }
 
 async function main() {
@@ -179,4 +181,11 @@ async function syncOptOuts() {
 
 main()
   .then(() => syncOptOuts())
-  .catch(e => { console.error(e); process.exit(1); });
+  .catch(e => {
+    if (e instanceof RateLimitError) {
+      console.warn('Rate limit persistente — token agotado, se omite este ciclo. Cache previo preservado.');
+      process.exit(0); // salida graceful — no marcar como failure en GH Actions
+    }
+    console.error(e);
+    process.exit(1);
+  });
