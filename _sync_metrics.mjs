@@ -198,7 +198,7 @@ async function computeGlobals(D, wonOppsByPipeline) {
   await sleep(500);
   const [smsTotal, smsMonth, smsToday, callsTotal, callsMonth, optoutMonth, optoutToday] = await Promise.all([
     fetchSmsTotal(SINCE, D.todayStr),
-    fetchSmsTotal(D.monthStartStr, D.todayStr),
+    D.monthStartStr === D.todayStr ? fetchSmsTotal(D.todayStr, D.tomorrowStr) : fetchSmsTotal(D.monthStartStr, D.todayStr),
     fetchSmsTotal(D.todayStr, D.tomorrowStr),
     fetchCallsSb(D.sinceISO, D.nowISO),
     fetchCallsSb(D.monthStartISO, D.nowISO),
@@ -285,7 +285,7 @@ async function discoverAndCacheMeta() {
       if (st) { meta.llamadaStageIds[id] = st.id; console.log(`  [meta] Llamada Agendada en ${name}: ${st.id}`); }
     }
     const genPip = (d.pipelines ?? []).find(p => p.id === GENERAL_OPENING);
-    meta.noShowStageIds = (genPip?.stages ?? []).filter(s => /no[\s_-]?show/i.test(s.name)).map(s => s.id);
+    meta.noShowStageIds = (genPip?.stages ?? []).filter(s => /no.?show/i.test(s.name.replace(/\p{Emoji}/gu,''))).map(s => s.id);
     console.log(`  [meta] noShowStageIds: ${meta.noShowStageIds.join(', ') || 'ninguno'}`);
   } catch(e) { console.warn('  [meta] error pipelines:', e.message); }
 
