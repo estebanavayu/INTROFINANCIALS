@@ -36,7 +36,8 @@ async function setSyncCursor(ts) {
 
 async function fetchConvMessages(convId) {
   try {
-    const r = await fetchWithRetry(`${GHL_URL}/conversations/${convId}/messages`, { headers: GHL_HDR });
+    // type=TYPE_CALL reduce el payload — solo mensajes de llamada
+    const r = await fetchWithRetry(`${GHL_URL}/conversations/${convId}/messages?type=TYPE_CALL`, { headers: GHL_HDR });
     const d = await r.json().catch(() => ({}));
     const msgs = Array.isArray(d.messages?.messages) ? d.messages.messages : [];
     return msgs.filter(m => m.messageType === 'TYPE_CALL' && m.meta?.call?.status === 'completed');
@@ -83,7 +84,7 @@ async function fetchWithRetry(url, opts, retries = 6) {
 async function main() {
   const cursor    = await getSyncCursor();
   const cursorMs  = new Date(cursor).getTime();
-  const sinceMs   = cursorMs - 24 * 60 * 60 * 1000; // overlap 1 día para seguridad
+  const sinceMs   = cursorMs - 6 * 60 * 60 * 1000; // overlap 6h (antes era 1 día — demasiado lento)
   const nowISO    = new Date().toISOString();
 
   console.log(`Sync desde: ${new Date(sinceMs).toISOString()}`);
