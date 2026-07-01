@@ -1109,15 +1109,64 @@ async function loadMcaReps() {
   } catch(e) { console.error('loadMcaReps:', e); }
 }
 
+// ── CC Funnel + Reps ─────────────────────────────────────────
+
+function renderCcReps(d) {
+  const fmt = n => n != null ? n.toLocaleString('es-CL') : '—';
+  const pct = n => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+  for (const [prefix, key] of [['cam','camila'],['mar','maria'],['sar','sara']]) {
+    const rep = d[key] ?? {};
+    document.getElementById(`${prefix}-cc-lts`).textContent   = fmt(rep.ltsMonth);
+    document.getElementById(`${prefix}-cc-calls`).textContent = fmt(rep.callsMonth);
+    const rate = rep.callsMonth ? rep.ltsMonth / rep.callsMonth : null;
+    document.getElementById(`${prefix}-cc-lt`).textContent    = pct(rate);
+    // call-type breakdown no disponible para CC (solo MCA tiene Call Now / Scheduled)
+    const noData = el => { if (el) el.textContent = '—'; };
+    noData(document.getElementById(`${prefix}-cc-callnow`));
+    noData(document.getElementById(`${prefix}-cc-sched`));
+    noData(document.getElementById(`${prefix}-cc-cold`));
+    noData(document.getElementById(`${prefix}-cc-inbound`));
+  }
+}
+
+async function loadCcFunnel() {
+  try {
+    const r = await fetch('/api/cc');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.error) return;
+
+    const fmt = n => n != null ? n.toLocaleString('es-CL') : '—';
+    const pct = n => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+
+    const tot = d._totals ?? {};
+    const ccCalls = (d.camila?.callsTotal ?? 0) + (d.maria?.callsTotal ?? 0)
+                  + (d.sara?.callsTotal ?? 0)   + (d.unknown?.callsTotal ?? 0);
+    const ccCallsM = (d.camila?.callsMonth ?? 0) + (d.maria?.callsMonth ?? 0)
+                   + (d.sara?.callsMonth ?? 0)   + (d.unknown?.callsMonth ?? 0);
+
+    document.getElementById('cc-calls').textContent    = fmt(ccCalls);
+    document.getElementById('cc-lts').textContent      = fmt(tot.ltsTotal);
+    document.getElementById('cc-rate-sms').textContent = '—%';   // requiere TT — no disponible
+    const rateCallLt = ccCalls ? tot.ltsTotal / ccCalls : null;
+    document.getElementById('cc-rate-lt').textContent  = pct(rateCallLt);
+    document.getElementById('cc-call-lt-pct').textContent = pct(rateCallLt);
+
+    renderCcReps(d);
+  } catch(e) { console.error('loadCcFunnel:', e); }
+}
+
 // ── Init ─────────────────────────────────────────────────────
 loadMsgStats();
 loadGlobals();
 loadMca();
 loadMcaReps();
+loadCcFunnel();
 setInterval(loadMsgStats,  5 * 60 * 1000);
 setInterval(loadGlobals,   5 * 60 * 1000);
 setInterval(loadMca,       5 * 60 * 1000);
 setInterval(loadMcaReps,  10 * 60 * 1000);
+setInterval(loadCcFunnel, 10 * 60 * 1000);
 </script>
 
 </body>

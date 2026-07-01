@@ -23,8 +23,9 @@ const PIPELINES_ALL = [
   'tzoH6Bv4qfC4Rug8yZvQ', // NCN OPENING
   '8tbkIiJnJCnPZY6X0mA6', // CENTURY OPENING (CC)
 ];
-const MCA_PIPELINES   = PIPELINES_ALL.slice(0, 2); // RISE + NCN
-const GENERAL_OPENING = 'fxzuSpmyNzMH4yupNfk1';
+const MCA_PIPELINES     = PIPELINES_ALL.slice(0, 2); // RISE + NCN
+const CENTURY_OPENING   = '8tbkIiJnJCnPZY6X0mA6';
+const GENERAL_OPENING   = 'fxzuSpmyNzMH4yupNfk1';
 const ALL_MCA_PIPELINES = [GENERAL_OPENING, ...MCA_PIPELINES]; // GENERAL + RISE + NCN
 
 const REPS = {
@@ -400,6 +401,80 @@ async function computeMcaReps(D, allOppsByPipeline, meta) {
   return result;
 }
 
+// ── CC Reps (CENTURY OPENING) ────────────────────────────────
+
+async function computeCcReps(D, wonOppsByPipeline, allCcOpps) {
+  const allWon  = wonOppsByPipeline[CENTURY_OPENING] ?? [];
+  const deduped = dedupByContact(allWon);
+
+  const ids   = { camila: new Set(), maria: new Set(), sara: new Set(), unknown: new Set() };
+  const ltTot = { camila: 0, maria: 0, sara: 0, unknown: 0 };
+  const ltMon = { camila: 0, maria: 0, sara: 0, unknown: 0 };
+
+  for (const o of deduped) {
+    if (!o.contactId) continue;
+    const t = new Date(o.lastStageChangeAt ?? o.createdAt).getTime();
+    if (t < D.sinceMs) continue;
+    let matched = false;
+    for (const [name, userId] of Object.entries(REPS)) {
+      if (o.assignedTo !== userId) continue;
+      ltTot[name]++;
+      ids[name].add(o.contactId);
+      if (t >= D.monthStartMs) ltMon[name]++;
+      matched = true;
+      break;
+    }
+    if (!matched) {
+      ltTot.unknown++;
+      ids.unknown.add(o.contactId);
+      if (t >= D.monthStartMs) ltMon.unknown++;
+    }
+  }
+
+  // Incluir opps abiertos de CC para acumular contactIds de llamadas
+  for (const o of allCcOpps) {
+    if (!o.contactId) continue;
+    let matched = false;
+    for (const [name, userId] of Object.entries(REPS)) {
+      if (o.assignedTo !== userId) continue;
+      ids[name].add(o.contactId); matched = true; break;
+    }
+    if (!matched) ids.unknown.add(o.contactId);
+  }
+
+  console.log('[cc_reps] LTs:', JSON.stringify(ltTot));
+
+  await sleep(400);
+  const names  = ['camila', 'maria', 'sara', 'unknown'];
+  const arrays = names.map(n => [...ids[n]]);
+  const [c0,c1,c2,c3,cm0,cm1,cm2,cm3] = await Promise.all([
+    fetchCallsForContacts(arrays[0], D.sinceISO,      D.nowISO),
+    fetchCallsForContacts(arrays[1], D.sinceISO,      D.nowISO),
+    fetchCallsForContacts(arrays[2], D.sinceISO,      D.nowISO),
+    fetchCallsForContacts(arrays[3], D.sinceISO,      D.nowISO),
+    fetchCallsForContacts(arrays[0], D.monthStartISO, D.nowISO),
+    fetchCallsForContacts(arrays[1], D.monthStartISO, D.nowISO),
+    fetchCallsForContacts(arrays[2], D.monthStartISO, D.nowISO),
+    fetchCallsForContacts(arrays[3], D.monthStartISO, D.nowISO),
+  ]);
+
+  const callsTot  = [c0,c1,c2,c3];
+  const callsMon  = [cm0,cm1,cm2,cm3];
+  const result = {};
+  for (let i = 0; i < names.length; i++) {
+    const n = names[i];
+    result[n] = {
+      ltsTotal: ltTot[n], ltsMonth: ltMon[n],
+      callsTotal: callsTot[i], callsMonth: callsMon[i],
+    };
+  }
+
+  const ccTotal = deduped.filter(o => new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= D.sinceMs).length;
+  const ccMonth = deduped.filter(o => new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= D.monthStartMs).length;
+  result._totals = { ltsTotal: ccTotal, ltsMonth: ccMonth };
+  return result;
+}
+
 // ── Métricas mensuales (desde junio 2026) ────────────────────
 
 async function computeMonthlyBreakdown(wonOppsByPipeline) {
@@ -502,6 +577,13 @@ async function main() {
     await sleep(600);
   }
 
+  console.log('\n[fetch] Fetching ALL opps CENTURY OPENING (CC)...');
+  let allCcOpps = [];
+  try {
+    allCcOpps = await fetchAllOpps(CENTURY_OPENING);
+    await sleep(600);
+  } catch(e) { console.warn('[fetch] Error CENTURY all opps:', e.message); }
+
   // ── Globals ──
   try {
     const g    = await computeGlobals(D, wonOppsByPipeline);
@@ -527,6 +609,14 @@ async function main() {
     const r = await computeMcaReps(D, allOppsByPipeline, meta);
     await writeCache('metrics_mca_reps', r);
   } catch (e) { console.error('[mca_reps] ERROR:', e.message); exitCode = 1; }
+
+  await sleep(600);
+
+  // ── CC Reps ──
+  try {
+    const cc = await computeCcReps(D, wonOppsByPipeline, allCcOpps);
+    await writeCache('metrics_cc', cc);
+  } catch (e) { console.error('[cc_reps] ERROR:', e.message); }
 
   await sleep(600);
 
