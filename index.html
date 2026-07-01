@@ -542,6 +542,15 @@
         <div id="lt-tooltip-val" style="font-weight:700;font-size:16px;color:#22c55e"></div>
       </div>
     </div>
+    <!-- Panel de desglose mensual (aparece al hacer click en una barra) -->
+    <div id="lt-month-detail" style="display:none;margin-top:10px;background:#1a1d35;border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;position:relative">
+      <button onclick="document.getElementById('lt-month-detail').style.display='none';document.querySelectorAll('.lt-bar').forEach(b=>b.removeAttribute('stroke'))" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1">×</button>
+      <div id="lt-detail-label" style="color:var(--muted);font-size:11px;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em"></div>
+      <div style="display:flex;gap:28px;align-items:baseline">
+        <div><span style="color:#22c55e;font-size:26px;font-weight:700" id="lt-detail-lts">—</span><span style="color:var(--muted);font-size:11px;margin-left:4px">LTs</span></div>
+        <div id="lt-detail-extra" style="color:var(--muted);font-size:12px"></div>
+      </div>
+    </div>
   </div>
 
 
@@ -952,8 +961,44 @@ function renderLtChart(ltsByMonth) {
     bar.addEventListener('mouseleave', () => {
       const mKey = bar.dataset.month;
       const isCur = mKey === `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-      bar.setAttribute('opacity', isCur ? '1' : '0.75');
+      const isSel = bar.getAttribute('stroke') === '#fff';
+      bar.setAttribute('opacity', isCur || isSel ? '1' : '0.75');
       tip.style.display = 'none';
+    });
+
+    bar.addEventListener('click', () => {
+      const mKey  = bar.dataset.month;
+      const v     = parseInt(bar.dataset.val, 10);
+      const [yr, mo] = mKey.split('-');
+      const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const label = `${MONTH_NAMES[parseInt(mo,10)-1]} ${yr}`;
+      const isCur = mKey === `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+      // Deselect previous bar
+      svg.querySelectorAll('.lt-bar').forEach(b => {
+        b.removeAttribute('stroke');
+        b.removeAttribute('stroke-width');
+        const bCur = b.dataset.month === `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        b.setAttribute('opacity', bCur ? '1' : '0.75');
+      });
+
+      // Toggle off if clicking same bar while panel is open
+      const detail = document.getElementById('lt-month-detail');
+      if (detail.style.display !== 'none' && document.getElementById('lt-detail-label').textContent === label.toUpperCase()) {
+        detail.style.display = 'none';
+        return;
+      }
+
+      // Mark selected
+      bar.setAttribute('stroke', '#fff');
+      bar.setAttribute('stroke-width', '1.5');
+      bar.setAttribute('opacity', '1');
+
+      // Populate panel
+      document.getElementById('lt-detail-label').textContent = label.toUpperCase();
+      document.getElementById('lt-detail-lts').textContent   = v;
+      document.getElementById('lt-detail-extra').textContent = isCur ? '(mes en curso)' : '';
+      detail.style.display = 'block';
     });
   });
 }
