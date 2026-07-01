@@ -268,10 +268,12 @@ async function discoverAndCacheMeta() {
   const cached = await readCache('metrics_meta');
   if (cached?.value && cached.updated_at) {
     const ageMs = Date.now() - new Date(cached.updated_at).getTime();
-    if (ageMs < 24 * 60 * 60 * 1000) {
+    const hasStages = (cached.value.noShowStageIds?.length ?? 0) > 0;
+    if (ageMs < 24 * 60 * 60 * 1000 && hasStages) {
       console.log('  [meta] usando cache (age=' + Math.round(ageMs/3600000) + 'h)');
       return cached.value;
     }
+    if (!hasStages) console.log('  [meta] cache sin noShowStageIds — redescubriendo');
   }
 
   const meta = { llamadaStageIds: {}, callNowFieldId: null, noShowStageIds: [] };
