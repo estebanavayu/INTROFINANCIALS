@@ -437,7 +437,10 @@ async function computeMonthlyBreakdown(wonOppsByPipeline) {
     const startISO  = start.toISOString();
     const isCurrent = month === curKey;
     const endISO    = isCurrent ? now.toISOString() : nextMonth.toISOString();
-    const smsEnd    = isCurrent ? now.toISOString().slice(0, 10) : endStr;
+    // Si hoy es el primer día del mes, start=end → GHL 400; usar mañana
+    const smsEnd    = isCurrent
+      ? (startStr === now.toISOString().slice(0, 10) ? endStr : now.toISOString().slice(0, 10))
+      : endStr;
 
     const [sms, calls] = await Promise.all([
       fetchSmsTotal(startStr, smsEnd),
