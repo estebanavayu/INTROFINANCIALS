@@ -1,14 +1,11 @@
 // Reporte diario Intro Analytics → email
-// Lee cache Supabase, construye HTML, envía via Gmail SMTP
-
 import { createTransport } from 'nodemailer';
 
-const SB_URL = process.env.IF_SUPABASE_URL;
-const SB_KEY = process.env.IF_SUPABASE_KEY;
-const EMAIL_PASS = process.env.EMAIL_APP_PASSWORD;
-const TO = process.env.REPORT_TO ?? 'esteban@happydebt.com';
-
-const SB_HDR = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+const SB_URL      = process.env.IF_SUPABASE_URL;
+const SB_KEY      = process.env.IF_SUPABASE_KEY;
+const EMAIL_PASS  = process.env.EMAIL_APP_PASSWORD;
+const TO          = process.env.REPORT_TO ?? 'esteban@happydebt.com';
+const SB_HDR      = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
 
 async function readCache(key) {
   const r = await fetch(`${SB_URL}/rest/v1/sync_state?key=eq.${key}&select=value,updated_at`, { headers: SB_HDR });
@@ -16,170 +13,168 @@ async function readCache(key) {
   return d[0] ? { value: JSON.parse(d[0].value), updated_at: d[0].updated_at } : null;
 }
 
-function fmt(n, dec = 0) {
-  if (n == null) return '—';
-  return typeof n === 'number' ? n.toLocaleString('es-CL', { maximumFractionDigits: dec }) : n;
-}
-function pct(n, dec = 2) { return n != null ? (n * 100).toFixed(dec) + '%' : '—'; }
-function pctDirect(n, dec = 2) { return n != null ? n.toFixed(dec) + '%' : '—'; }
+const fmt  = (n, d=0) => n == null ? '—' : Number(n).toLocaleString('es-CL', { maximumFractionDigits: d });
+const pct  = (a, b)   => (a && b) ? (a/b*100).toFixed(1)+'%' : '—';
 
-const [globalsCache, mcaCache, repsCache, monthlyCache] = await Promise.all([
+const [gc, mc, rc, mbc] = await Promise.all([
   readCache('metrics_globals'),
   readCache('metrics_mca'),
   readCache('metrics_mca_reps'),
   readCache('metrics_by_month'),
 ]);
 
-const g  = globalsCache?.value  ?? {};
-const m  = mcaCache?.value      ?? {};
-const r  = repsCache?.value     ?? {};
-const mb = monthlyCache?.value  ?? {};
+const g  = gc?.value  ?? {};
+const m  = mc?.value  ?? {};
+const rr = rc?.value  ?? {};
+const mb = mbc?.value ?? {};
 
-const now = new Date();
-const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const mesActual  = monthNames[now.getMonth()];
-const fechaHoy   = now.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Santiago' });
-const curKey     = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-const prevKey    = (() => { const d = new Date(now.getFullYear(), now.getMonth() - 1, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })();
-const prevName   = monthNames[new Date(now.getFullYear(), now.getMonth() - 1, 1).getMonth()];
-
-const updated = globalsCache?.updated_at
-  ? new Date(globalsCache.updated_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' })
+const now      = new Date();
+const MONTHS   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const mesActual = MONTHS[now.getMonth()];
+const fechaHoy  = now.toLocaleDateString('es-CL', { day:'numeric', month:'long', year:'numeric', timeZone:'America/Santiago' });
+const updated   = gc?.updated_at
+  ? new Date(gc.updated_at).toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit', timeZone:'America/Santiago' })
   : '?';
+const prevKey  = (() => { const d = new Date(now.getFullYear(), now.getMonth()-1, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })();
+const prevName = MONTHS[new Date(now.getFullYear(), now.getMonth()-1, 1).getMonth()];
+const prev     = mb[prevKey] ?? {};
 
-// Datos mes actual
-const ltsMonth   = g.ltsMonth   ?? 0;
-const callsMonth = g.callsMonth ?? m.callsMonth ?? 0;
-const smsMonth   = g.smsMonth   ?? 0;
-const rateSCm    = smsMonth  && callsMonth ? callsMonth / smsMonth  : null;
-const rateCLm    = callsMonth && ltsMonth  ? ltsMonth  / callsMonth : null;
+const ltsM   = g.ltsMonth   ?? 0;
+const callsM = g.callsMonth ?? m.callsMonth ?? 0;
+const smsM   = g.smsMonth   ?? 0;
 
-// Datos mes anterior (desde metrics_by_month)
-const prevData = mb[prevKey] ?? {};
+// colores
+const C = { bg:'#0d0f1e', card:'#141728', border:'#1e2240', green:'#22c55e', blue:'#60a5fa', purple:'#a78bfa', white:'#e8eaf6', muted:'#6b7280' };
 
-// Reps
-const repNames = { camila: 'Camila', maria: 'Maria', sara: 'Sara' };
+const cell = (val, color=C.white, sub='') => `
+  <td style="background:${C.card};border-radius:8px;padding:16px 12px;text-align:center;border:1px solid ${C.border}">
+    <div style="font-size:26px;font-weight:700;color:${color};font-family:Arial">${val}</div>
+    ${sub ? `<div style="font-size:10px;color:${C.muted};margin-top:3px;letter-spacing:.04em">${sub}</div>` : ''}
+  </td>`;
 
-const STYLE = `
-  body { margin:0; padding:0; background:#0d0f1e; font-family:'Segoe UI',Arial,sans-serif; color:#e8eaf6; }
-  .wrap { max-width:640px; margin:0 auto; padding:24px 16px; }
-  h1 { font-size:22px; font-weight:700; color:#fff; margin:0 0 4px; }
-  .sub { color:#6b7280; font-size:13px; margin:0 0 24px; }
-  .section { margin-bottom:24px; }
-  .section-title { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#6b7280; margin:0 0 10px; }
-  .card-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-  .card-grid-2 { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
-  .card-grid-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
-  .card { background:#1a1d35; border-radius:10px; padding:14px 12px; text-align:center; }
-  .card .val { font-size:22px; font-weight:700; color:#22c55e; }
-  .card .val.blue { color:#60a5fa; }
-  .card .val.purple { color:#a78bfa; }
-  .card .val.white { color:#e8eaf6; }
-  .card .lbl { font-size:10px; color:#6b7280; margin-top:4px; }
-  .rep-table { width:100%; border-collapse:collapse; font-size:13px; }
-  .rep-table th { text-align:left; color:#6b7280; font-size:10px; text-transform:uppercase; letter-spacing:.05em; padding:6px 8px; border-bottom:1px solid #2e3250; }
-  .rep-table td { padding:10px 8px; border-bottom:1px solid #1e2240; }
-  .rep-table tr:last-child td { border-bottom:none; }
-  .tag-green { display:inline-block; background:#16a34a22; color:#22c55e; border-radius:4px; padding:2px 7px; font-size:11px; font-weight:600; }
-  .footer { color:#4b5563; font-size:11px; text-align:center; margin-top:32px; border-top:1px solid #1e2240; padding-top:16px; }
-  .prev-row { display:flex; gap:8px; flex-wrap:wrap; }
-  .prev-chip { background:#111328; border:1px solid #2e3250; border-radius:8px; padding:8px 14px; flex:1; min-width:80px; text-align:center; }
-  .prev-chip .v { font-size:16px; font-weight:700; color:#e8eaf6; }
-  .prev-chip .l { font-size:10px; color:#6b7280; margin-top:2px; }
-`;
-
-const repRows = Object.entries(repNames).map(([key, name]) => {
-  const rep = r[key] ?? {};
-  const ltM  = rep.ltsMonth  ?? 0;
-  const cM   = rep.callsMonth ?? 0;
-  const rate = cM ? ((ltM / cM) * 100).toFixed(1) + '%' : '—';
+const repRows = [
+  ['Camila', rr.camila],
+  ['Maria',  rr.maria],
+  ['Sara',   rr.sara],
+].map(([name, d]) => {
+  const lt  = d?.ltsMonth  ?? 0;
+  const cl  = d?.callsMonth ?? null;
+  const rate = pct(lt, cl);
   return `
-    <tr>
-      <td style="font-weight:600">${name}</td>
-      <td style="color:#22c55e;font-weight:700">${ltM}</td>
-      <td>${fmt(cM)}</td>
-      <td style="color:#a78bfa">${rate}</td>
-    </tr>`;
+  <tr style="border-bottom:1px solid ${C.border}">
+    <td style="padding:12px 14px;font-weight:600;color:${C.white};font-size:14px">${name}</td>
+    <td style="padding:12px 14px;text-align:center;font-size:20px;font-weight:700;color:${C.green}">${lt}</td>
+    <td style="padding:12px 14px;text-align:center;font-size:16px;color:${C.white}">${cl != null ? fmt(cl) : '—'}</td>
+    <td style="padding:12px 14px;text-align:center;font-size:16px;color:${C.purple}">${rate}</td>
+  </tr>`;
 }).join('');
 
+const prevSection = prev.lts != null ? `
+<table width="100%" cellpadding="0" cellspacing="6" style="margin-top:24px">
+  <tr>
+    <td colspan="5" style="padding:0 0 8px;font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.07em">${prevName} — cierre del mes</td>
+  </tr>
+  <tr>
+    ${cell(fmt(prev.lts),   C.green,  'LTs')}
+    <td width="6"></td>
+    ${cell(fmt(prev.calls), C.white,  'Llamadas')}
+    <td width="6"></td>
+    ${cell(fmt(prev.sms),   C.white,  'SMS')}
+    <td width="6"></td>
+    ${cell(pct(prev.calls, prev.sms), C.blue,   'SMS→Call')}
+    <td width="6"></td>
+    ${cell(pct(prev.lts, prev.calls), C.purple, 'Call→LT')}
+  </tr>
+</table>` : '';
+
 const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>${STYLE}</style></head>
-<body><div class="wrap">
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:${C.bg};font-family:Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
 
-  <h1>Intro Analytics</h1>
-  <p class="sub">Reporte diario · ${fechaHoy} · Datos al ${updated} hrs Chile</p>
+  <!-- HEADER -->
+  <tr><td style="padding:0 0 20px">
+    <div style="font-size:22px;font-weight:700;color:${C.white}">Intro <span style="color:${C.blue}">Analytics</span></div>
+    <div style="font-size:12px;color:${C.muted};margin-top:4px">Reporte diario · ${fechaHoy} · Datos al ${updated} hrs Chile</div>
+  </td></tr>
 
-  <!-- MES ACTUAL MTD -->
-  <div class="section">
-    <div class="section-title">${mesActual} ${now.getFullYear()} — acumulado del mes</div>
-    <div class="card-grid" style="margin-bottom:8px">
-      <div class="card"><div class="val">${fmt(ltsMonth)}</div><div class="lbl">Live Transfers</div></div>
-      <div class="card"><div class="val white">${fmt(callsMonth)}</div><div class="lbl">Llamadas concretadas</div></div>
-      <div class="card"><div class="val white">${fmt(smsMonth)}</div><div class="lbl">SMS blasteados</div></div>
-    </div>
-    <div class="card-grid-2">
-      <div class="card"><div class="val blue">${pct(rateSCm)}</div><div class="lbl">Tasa SMS → Call</div></div>
-      <div class="card"><div class="val purple">${pct(rateCLm)}</div><div class="lbl">Tasa Call → LT</div></div>
-    </div>
-  </div>
+  <!-- MTD METRICS -->
+  <tr><td style="padding:0 0 6px">
+    <div style="font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">${mesActual} ${now.getFullYear()} — acumulado del mes</div>
+    <table width="100%" cellpadding="0" cellspacing="6">
+      <tr>
+        ${cell(fmt(ltsM),   C.green,  'Live Transfers')}
+        <td width="6"></td>
+        ${cell(fmt(callsM), C.white,  'Llamadas concretadas')}
+        <td width="6"></td>
+        ${cell(fmt(smsM),   C.white,  'SMS blasteados')}
+      </tr>
+      <tr height="6"><td colspan="5"></td></tr>
+      <tr>
+        ${cell(pct(callsM, smsM),  C.blue,   'Tasa SMS → Call')}
+        <td width="6"></td>
+        ${cell(pct(ltsM, callsM),  C.purple, 'Tasa Call → LT')}
+        <td width="6"></td>
+        ${cell(fmt(m.leadsActive), C.white,  'Leads en secuencia')}
+      </tr>
+    </table>
+  </td></tr>
 
-  <!-- REPS MTD -->
-  <div class="section">
-    <div class="section-title">Desglose por rep — ${mesActual}</div>
-    <div style="background:#1a1d35;border-radius:10px;overflow:hidden">
-      <table class="rep-table">
-        <thead><tr>
-          <th>Rep</th><th>LTs</th><th>Llamadas</th><th>Call→LT</th>
-        </tr></thead>
-        <tbody>${repRows}</tbody>
-      </table>
-    </div>
-  </div>
+  <!-- REPS -->
+  <tr><td style="padding:20px 0 0">
+    <div style="font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Desglose por rep — ${mesActual}</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border-radius:10px;border:1px solid ${C.border};border-collapse:separate;overflow:hidden">
+      <tr style="background:#0f1124">
+        <td style="padding:10px 14px;font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.05em">Rep</td>
+        <td style="padding:10px 14px;font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.05em;text-align:center">LTs</td>
+        <td style="padding:10px 14px;font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.05em;text-align:center">Llamadas</td>
+        <td style="padding:10px 14px;font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.05em;text-align:center">Call→LT</td>
+      </tr>
+      ${repRows}
+    </table>
+  </td></tr>
 
-  <!-- FUNNEL MCA -->
-  <div class="section">
-    <div class="section-title">Funnel MCA</div>
-    <div class="card-grid">
-      <div class="card"><div class="val white">${fmt(m.leadsActive)}</div><div class="lbl">Leads en secuencia</div></div>
-      <div class="card"><div class="val white">${fmt(m.ltsTotal)}</div><div class="lbl">LTs totales (desde feb)</div></div>
-      <div class="card"><div class="val white">${fmt(m.noShows)}</div><div class="lbl">No-shows</div></div>
-    </div>
-  </div>
+  <!-- FUNNEL -->
+  <tr><td style="padding:20px 0 0">
+    <div style="font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Funnel MCA</div>
+    <table width="100%" cellpadding="0" cellspacing="6">
+      <tr>
+        ${cell(fmt(m.ltsTotal),    C.green,  'LTs totales (desde feb)')}
+        <td width="6"></td>
+        ${cell(fmt(m.leadsActive), C.white,  'Leads en secuencia')}
+        <td width="6"></td>
+        ${cell(fmt(m.noShows),     C.white,  'No-shows')}
+      </tr>
+    </table>
+  </td></tr>
 
-  ${prevData.lts != null ? `
   <!-- MES ANTERIOR -->
-  <div class="section">
-    <div class="section-title">${prevName} — cierre del mes</div>
-    <div class="prev-row">
-      <div class="prev-chip"><div class="v" style="color:#22c55e">${fmt(prevData.lts)}</div><div class="l">LTs</div></div>
-      <div class="prev-chip"><div class="v">${fmt(prevData.calls)}</div><div class="l">Llamadas</div></div>
-      <div class="prev-chip"><div class="v">${fmt(prevData.sms)}</div><div class="l">SMS</div></div>
-      <div class="prev-chip"><div class="v" style="color:#60a5fa">${prevData.sms && prevData.calls ? (prevData.calls/prevData.sms*100).toFixed(2)+'%' : '—'}</div><div class="l">SMS→Call</div></div>
-      <div class="prev-chip"><div class="v" style="color:#a78bfa">${prevData.calls && prevData.lts ? (prevData.lts/prevData.calls*100).toFixed(1)+'%' : '—'}</div><div class="l">Call→LT</div></div>
-    </div>
-  </div>
-  ` : ''}
+  <tr><td>${prevSection}</td></tr>
 
-  <div class="footer">
-    Intro Analytics · introfinancials.vercel.app<br>
-    Datos actualizados cada 30 min desde GHL
-  </div>
+  <!-- FOOTER -->
+  <tr><td style="padding:28px 0 0;text-align:center;color:${C.muted};font-size:11px;border-top:1px solid ${C.border};margin-top:8px">
+    <a href="https://introfinancials.vercel.app" style="color:${C.blue};text-decoration:none">introfinancials.vercel.app</a>
+    &nbsp;·&nbsp; Actualización automática cada 30 min
+  </td></tr>
 
-</div></body></html>`;
+</table>
+</td></tr></table>
+</body></html>`;
 
 const transport = createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  host: 'smtp.gmail.com', port: 465, secure: true,
   auth: { user: 'esteban@happydebt.com', pass: EMAIL_PASS },
 });
 
 await transport.sendMail({
-  from: '"Intro Analytics" <esteban@happydebt.com>',
-  to: TO,
-  subject: `Intro Analytics · ${mesActual} ${now.getFullYear()} · ${ltsMonth} LTs del mes`,
+  from:    '"Intro Analytics" <esteban@happydebt.com>',
+  to:      TO,
+  subject: `📊 Intro Analytics · ${mesActual} ${now.getFullYear()} · ${ltsM} LTs del mes`,
   html,
 });
 
 console.log(`✓ Email enviado a ${TO}`);
-console.log(`  LTs mes: ${ltsMonth} | Llamadas mes: ${callsMonth} | SMS mes: ${fmt(smsMonth)}`);
+console.log(`  LTs: ${ltsM} | Llamadas: ${callsM} | SMS: ${fmt(smsM)}`);
