@@ -39,9 +39,11 @@ const prevKey  = (() => { const d = new Date(now.getFullYear(), now.getMonth()-1
 const prevName = MONTHS[new Date(now.getFullYear(), now.getMonth()-1, 1).getMonth()];
 const prev     = mb[prevKey] ?? {};
 
-const ltsM   = g.ltsMonth   ?? 0;
-const callsM = g.callsMonth ?? m.callsMonth ?? 0;
-const smsM   = g.smsMonth   ?? 0;
+const ltsM    = g.ltsMonth    ?? 0;
+const callsM  = g.callsMonth ?? m.callsMonth ?? 0;
+const smsM    = g.smsMonth   ?? 0;
+const mcaLtsM = m.ltsMonth   ?? 0;
+const ccLtsM  = Math.max(0, ltsM - mcaLtsM); // CENTURY OPENING = CC
 
 const REPS = [
   ['Camila', rr.camila],
@@ -83,11 +85,17 @@ const html = `<!DOCTYPE html>
     ${repRows}
     <tr><td style="padding:6px 0 0;font-size:12px;color:#777" colspan="2">Total reps: ${totalRepLts} LTs · ${fmt(totalRepCalls)} llamadas · Call→LT ${pct(totalRepLts, totalRepCalls)}</td></tr>
 
-    ${divider('Funnel MCA')}
+    ${divider('MCA')}
+    ${row('LTs del mes',              fmt(mcaLtsM))}
     ${row('LTs totales (desde feb)',  fmt(m.ltsTotal))}
+    ${row('Llamadas concretadas mes', fmt(m.callsMonth))}
+    ${row('Tasa Call → LT',          pct(mcaLtsM, m.callsMonth))}
     ${row('Leads en secuencia',       fmt(m.leadsActive))}
     ${row('No-shows',                 fmt(m.noShows))}
-    ${row('Tasa Call → LT (global)',  pct(m.ltsTotal, m.callsTotal))}
+
+    ${divider('Credit Card')}
+    ${row('LTs del mes',             fmt(ccLtsM))}
+    ${row('LTs totales (desde feb)', fmt(Math.max(0, (g.lts ?? 0) - (m.ltsTotal ?? 0))))}
 
     ${prev.lts != null ? `
     ${divider(`${prevName} — Cierre del mes`)}
