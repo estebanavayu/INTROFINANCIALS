@@ -72,11 +72,14 @@ for (const [pipId, pipName] of Object.entries(PIPELINES)) {
 }
 
 if (unknownReps.size) {
-  console.log('\n=== REPS DESCONOCIDOS (no están en REPS map) ===');
-  for (const [userId, count] of unknownReps) {
-    const name = await getUserName(userId);
-    console.log(`  ${name} (${userId}): ${count} LTs`);
-    await sleep(300);
+  console.log('\n=== REPS DESCONOCIDOS — RAW OPP FIELDS ===');
+  const unknownOpps = allWon.filter(o => !KNOWN_REPS[o.assignedTo]);
+  for (const o of unknownOpps) {
+    console.log(`  Contact: ${o.contact?.name} (contactId: ${o.contactId})`);
+    console.log(`    o.assignedTo: ${JSON.stringify(o.assignedTo)}`);
+    console.log(`    o.userId: ${JSON.stringify(o.userId)}`);
+    console.log(`    o.contact?.assignedTo: ${JSON.stringify(o.contact?.assignedTo)}`);
+    console.log(`    o.id: ${o.id}`);
   }
 }
 
