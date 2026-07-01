@@ -1,4 +1,4 @@
-name: Audit LTs Mes
+name: Audit LTs del mes
 on: workflow_dispatch
 jobs:
   audit:
