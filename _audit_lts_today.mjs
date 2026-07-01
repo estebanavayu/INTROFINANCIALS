@@ -5,10 +5,8 @@ const GHL_TOKEN = process.env.GHL_TOKEN_IF ?? process.env.GHL_TOKEN;
 const GHL_HDR   = { Authorization: `Bearer ${GHL_TOKEN}`, Version: '2021-07-28', Accept: 'application/json' };
 
 const PIPELINES = {
-  'fxzuSpmyNzMH4yupNfk1': 'GENERAL',
   '85kFh5EWKPg7qg9FDJfg':  'RISE',
   'tzoH6Bv4qfC4Rug8yZvQ':  'NCN',
-  '8tbkIiJnJCnPZY6X0mA6':  'CENTURY',
 };
 const KNOWN_REPS = {
   'KDgmtLyZD3R4OiahkpSH': 'camila',
