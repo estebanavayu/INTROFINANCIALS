@@ -11,18 +11,27 @@ on:
         default: 'esteban@happydebt.com'
 
 jobs:
-  send:
+  sync-then-send:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm install nodemailer
+
+      # 1. Actualizar métricas antes de enviar el correo
+      - name: Sincronizar métricas GHL → Supabase
+        env:
+          GHL_TOKEN_IF:    ${{ secrets.GHL_TOKEN_IF }}
+          IF_SUPABASE_URL: ${{ secrets.IF_SUPABASE_URL }}
+          IF_SUPABASE_KEY: ${{ secrets.IF_SUPABASE_KEY }}
+        run: node _sync_metrics.mjs
+
+      # 2. Enviar el correo con datos frescos
       - name: Enviar reporte diario
         env:
-          IF_SUPABASE_URL:   ${{ secrets.IF_SUPABASE_URL }}
-          IF_SUPABASE_KEY:   ${{ secrets.IF_SUPABASE_KEY }}
+          IF_SUPABASE_URL:    ${{ secrets.IF_SUPABASE_URL }}
+          IF_SUPABASE_KEY:    ${{ secrets.IF_SUPABASE_KEY }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
-          REPORT_TO:         ${{ github.event.inputs.to || 'esteban@happydebt.com' }}
+          REPORT_TO:          ${{ github.event.inputs.to || 'esteban@happydebt.com' }}
         run: node _send_daily_report.mjs
