@@ -442,7 +442,8 @@ async function computeCcReps(D, wonOppsByPipeline, allCcOpps) {
     if (!matched) ids.unknown.add(o.contactId);
   }
 
-  console.log('[cc_reps] LTs:', JSON.stringify(ltTot));
+  const leadsActive = allCcOpps.filter(o => o.status === 'open').length;
+  console.log('[cc_reps] LTs:', JSON.stringify(ltTot), '| ltMon:', JSON.stringify(ltMon), '| leadsActive:', leadsActive);
 
   await sleep(400);
   const names  = ['camila', 'maria', 'sara', 'unknown'];
@@ -458,9 +459,9 @@ async function computeCcReps(D, wonOppsByPipeline, allCcOpps) {
     fetchCallsForContacts(arrays[3], D.monthStartISO, D.nowISO),
   ]);
 
-  const callsTot  = [c0,c1,c2,c3];
-  const callsMon  = [cm0,cm1,cm2,cm3];
-  const result = {};
+  const callsTot = [c0,c1,c2,c3];
+  const callsMon = [cm0,cm1,cm2,cm3];
+  const result   = {};
   for (let i = 0; i < names.length; i++) {
     const n = names[i];
     result[n] = {
@@ -469,9 +470,12 @@ async function computeCcReps(D, wonOppsByPipeline, allCcOpps) {
     };
   }
 
-  const ccTotal = deduped.filter(o => new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= D.sinceMs).length;
-  const ccMonth = deduped.filter(o => new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= D.monthStartMs).length;
-  result._totals = { ltsTotal: ccTotal, ltsMonth: ccMonth };
+  const ccTotal      = deduped.filter(o => new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= D.sinceMs).length;
+  const ccMonth      = deduped.filter(o => new Date(o.lastStageChangeAt ?? o.createdAt).getTime() >= D.monthStartMs).length;
+  const ccCallsTot   = callsTot.reduce((s, v) => s + (v ?? 0), 0);
+  const ccCallsMon   = callsMon.reduce((s, v) => s + (v ?? 0), 0);
+  console.log('[cc_reps] calls total:', ccCallsTot, '| mes:', ccCallsMon);
+  result._totals = { ltsTotal: ccTotal, ltsMonth: ccMonth, callsTotal: ccCallsTot, callsMonth: ccCallsMon, leadsActive };
   return result;
 }
 

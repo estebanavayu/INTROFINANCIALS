@@ -44,9 +44,11 @@ const prev     = mb[prevKey] ?? {};
 const ltsM    = g.ltsMonth    ?? 0;
 const callsM  = g.callsMonth ?? m.callsMonth ?? 0;
 const smsM    = g.smsMonth   ?? 0;
-const mcaLtsM    = m.ltsMonth         ?? 0;
-const ccLtsM     = cc._totals?.ltsMonth  ?? Math.max(0, ltsM - mcaLtsM);
-const ccLtsTot   = cc._totals?.ltsTotal  ?? Math.max(0, (g.lts ?? 0) - (m.ltsTotal ?? 0));
+const mcaLtsM    = m.ltsMonth             ?? 0;
+const ccLtsM     = cc._totals?.ltsMonth   ?? Math.max(0, ltsM - mcaLtsM);
+const ccLtsTot   = cc._totals?.ltsTotal   ?? Math.max(0, (g.lts ?? 0) - (m.ltsTotal ?? 0));
+const ccCallsM   = cc._totals?.callsMonth ?? 0;
+const ccLeads    = cc._totals?.leadsActive ?? 0;
 const CC_REPS    = ['camila', 'maria', 'sara', 'unknown'];
 const ccRepNames = { camila: 'Camila', maria: 'Maria', sara: 'Sara', unknown: 'Sin asignar' };
 
@@ -101,11 +103,15 @@ const html = `<!DOCTYPE html>
     ${divider('Credit Card')}
     ${row('LTs del mes',             fmt(ccLtsM))}
     ${row('LTs totales (desde feb)', fmt(ccLtsTot))}
+    ${row('Llamadas concretadas mes', fmt(ccCallsM))}
+    ${row('Tasa Call → LT',          pct(ccLtsM, ccCallsM))}
+    ${row('Leads en secuencia',       fmt(ccLeads))}
+    ${row('Mensajes blasteados',      '0 (sin datos TT)')}
     ${CC_REPS.filter(n => (cc[n]?.ltsTotal ?? 0) > 0 || (cc[n]?.ltsMonth ?? 0) > 0).map(n => {
-      const d = cc[n] ?? {};
-      const lt  = d.ltsMonth   ?? 0;
-      const cl  = d.callsMonth ?? null;
-      return row(ccRepNames[n], `${lt} LTs · ${cl != null ? fmt(cl)+' llamadas' : '—  llamadas'} · Call→LT ${pct(lt, cl)}`, '&nbsp;&nbsp;');
+      const d  = cc[n] ?? {};
+      const lt = d.ltsMonth   ?? 0;
+      const cl = d.callsMonth ?? 0;
+      return row(ccRepNames[n], `${lt} LTs · ${fmt(cl)} llamadas · Call→LT ${pct(lt, cl)}`, '&nbsp;&nbsp;');
     }).join('')}
 
     ${prev.lts != null ? `

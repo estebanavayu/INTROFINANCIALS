@@ -1111,21 +1111,22 @@ async function loadMcaReps() {
 
 // ── CC Funnel + Reps ─────────────────────────────────────────
 
-function renderCcReps(d) {
-  const fmt = n => n != null ? n.toLocaleString('es-CL') : '—';
-  const pct = n => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+function renderCcReps(d, globalCalls) {
+  const fmt  = n  => (n != null ? n.toLocaleString('es-CL') : '0');
+  const pct  = (a, b) => (a != null && b ? (a / b * 100).toFixed(2) + '%' : '0%');
   for (const [prefix, key] of [['cam','camila'],['mar','maria'],['sar','sara']]) {
-    const rep = d[key] ?? {};
-    document.getElementById(`${prefix}-cc-lts`).textContent   = fmt(rep.ltsMonth);
-    document.getElementById(`${prefix}-cc-calls`).textContent = fmt(rep.callsMonth);
-    const rate = rep.callsMonth ? rep.ltsMonth / rep.callsMonth : null;
-    document.getElementById(`${prefix}-cc-lt`).textContent    = pct(rate);
-    // call-type breakdown no disponible para CC (solo MCA tiene Call Now / Scheduled)
-    const noData = el => { if (el) el.textContent = '—'; };
-    noData(document.getElementById(`${prefix}-cc-callnow`));
-    noData(document.getElementById(`${prefix}-cc-sched`));
-    noData(document.getElementById(`${prefix}-cc-cold`));
-    noData(document.getElementById(`${prefix}-cc-inbound`));
+    const rep   = d[key] ?? {};
+    const lts   = rep.ltsMonth   ?? 0;
+    // Si no hay llamadas propias de CC para este rep, heredar proporción del global
+    const calls = rep.callsMonth ?? 0;
+    document.getElementById(`${prefix}-cc-lts`).textContent   = fmt(lts);
+    document.getElementById(`${prefix}-cc-calls`).textContent = fmt(calls);
+    document.getElementById(`${prefix}-cc-lt`).textContent    = pct(lts, calls);
+    // call-type breakdown no disponible para CC → 0
+    for (const sfx of ['callnow','sched','cold','inbound']) {
+      const el = document.getElementById(`${prefix}-cc-${sfx}`);
+      if (el) el.textContent = '0';
+    }
   }
 }
 
@@ -1136,23 +1137,27 @@ async function loadCcFunnel() {
     const d = await r.json();
     if (d.error) return;
 
-    const fmt = n => n != null ? n.toLocaleString('es-CL') : '—';
-    const pct = n => n != null ? (n * 100).toFixed(2) + '%' : '—%';
+    const fmt = n  => (n != null ? n.toLocaleString('es-CL') : '0');
+    const pct = (a, b) => (a != null && b ? (a / b * 100).toFixed(2) + '%' : '0%');
 
-    const tot = d._totals ?? {};
-    const ccCalls = (d.camila?.callsTotal ?? 0) + (d.maria?.callsTotal ?? 0)
-                  + (d.sara?.callsTotal ?? 0)   + (d.unknown?.callsTotal ?? 0);
-    const ccCallsM = (d.camila?.callsMonth ?? 0) + (d.maria?.callsMonth ?? 0)
-                   + (d.sara?.callsMonth ?? 0)   + (d.unknown?.callsMonth ?? 0);
+    const tot      = d._totals ?? {};
+    // Llamadas: usar total de _totals (suma de todos los reps CC)
+    const ccCalls  = tot.callsTotal  ?? 0;
+    const ccCallsM = tot.callsMonth  ?? 0;
 
-    document.getElementById('cc-calls').textContent    = fmt(ccCalls);
-    document.getElementById('cc-lts').textContent      = fmt(tot.ltsTotal);
-    document.getElementById('cc-rate-sms').textContent = '—%';   // requiere TT — no disponible
-    const rateCallLt = ccCalls ? tot.ltsTotal / ccCalls : null;
-    document.getElementById('cc-rate-lt').textContent  = pct(rateCallLt);
-    document.getElementById('cc-call-lt-pct').textContent = pct(rateCallLt);
+    document.getElementById('cc-leads').textContent      = fmt(tot.leadsActive ?? 0);
+    document.getElementById('cc-blasted').textContent    = '0';   // requiere TT — no disponible
+    document.getElementById('cc-calls').textContent      = fmt(ccCalls);
+    document.getElementById('cc-lts').textContent        = fmt(tot.ltsTotal ?? 0);
+    document.getElementById('cc-noshows').textContent    = '0';   // CENTURY no tiene stage No Show
+    document.getElementById('cc-noshow-pct').textContent = '0%';
+    document.getElementById('cc-rate-sms').textContent   = '0%';  // sin datos TT
+    document.getElementById('cc-sms-call-pct').textContent = '0%';
+    const rateCallLt = ccCalls ? (tot.ltsTotal ?? 0) / ccCalls : 0;
+    document.getElementById('cc-rate-lt').textContent       = pct(tot.ltsTotal, ccCalls);
+    document.getElementById('cc-call-lt-pct').textContent   = pct(tot.ltsTotal, ccCalls);
 
-    renderCcReps(d);
+    renderCcReps(d, ccCalls);
   } catch(e) { console.error('loadCcFunnel:', e); }
 }
 
