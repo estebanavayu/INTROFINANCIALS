@@ -28,6 +28,7 @@ jobs:
         run: node _sync_metrics.mjs
 
       # 2. Enviar el correo con datos frescos
+      - run: npm install nodemailer
       - name: Enviar reporte diario
         env:
           IF_SUPABASE_URL:    ${{ secrets.IF_SUPABASE_URL }}
