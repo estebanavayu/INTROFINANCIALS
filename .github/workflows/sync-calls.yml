@@ -1,10 +1,7 @@
 name: Sync Call Records
 
 on:
-  schedule:
-    - cron: '20 6 * * *'   # 6:20 AM UTC = 2:20 AM Chile (offset vs sync-metrics :07/:37)
-    - cron: '20 17 * * *'  # 17:20 UTC = 1:20 PM Chile
-  workflow_dispatch:
+  workflow_dispatch:  # solo manual — sync-calls ahora corre integrado en sync-metrics cada 30 min
 
 jobs:
   sync:

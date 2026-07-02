@@ -8,7 +8,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -17,6 +17,15 @@ jobs:
         with:
           node-version: '20'
 
+      # 1. Sync llamadas primero (overlap 2h, rápido) para que las métricas las vean frescas
+      - name: Sync calls GHL → Supabase
+        env:
+          GHL_TOKEN_IF:    ${{ secrets.GHL_TOKEN_IF }}
+          IF_SUPABASE_URL: ${{ secrets.IF_SUPABASE_URL }}
+          IF_SUPABASE_KEY: ${{ secrets.IF_SUPABASE_KEY }}
+        run: node _sync_calls.mjs
+
+      # 2. Computar métricas con llamadas ya actualizadas
       - name: Sync metrics → Supabase cache
         env:
           GHL_TOKEN_IF:    ${{ secrets.GHL_TOKEN_IF }}

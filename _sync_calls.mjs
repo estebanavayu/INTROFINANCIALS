@@ -84,7 +84,7 @@ async function fetchWithRetry(url, opts, retries = 6) {
 async function main() {
   const cursor    = await getSyncCursor();
   const cursorMs  = new Date(cursor).getTime();
-  const sinceMs   = cursorMs - 6 * 60 * 60 * 1000; // overlap 6h (antes era 1 día — demasiado lento)
+  const sinceMs   = cursorMs - 2 * 60 * 60 * 1000; // overlap 2h — suficiente para no perder nada entre runs de 30 min
   const nowISO    = new Date().toISOString();
 
   console.log(`Sync desde: ${new Date(sinceMs).toISOString()}`);
