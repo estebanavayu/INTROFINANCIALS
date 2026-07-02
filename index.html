@@ -1111,18 +1111,19 @@ async function loadMcaReps() {
 
 // ── CC Funnel + Reps ─────────────────────────────────────────
 
-function renderCcReps(d, globalCalls) {
+function renderCcReps(d, mcaReps, useMcaCallsFallback) {
   const fmt  = n  => (n != null ? n.toLocaleString('es-CL') : '0');
-  const pct  = (a, b) => (a != null && b ? (a / b * 100).toFixed(2) + '%' : '0%');
+  const pct  = (a, b) => (a && b ? (a / b * 100).toFixed(2) + '%' : '0%');
   for (const [prefix, key] of [['cam','camila'],['mar','maria'],['sar','sara']]) {
-    const rep   = d[key] ?? {};
-    const lts   = rep.ltsMonth   ?? 0;
-    // Si no hay llamadas propias de CC para este rep, heredar proporción del global
-    const calls = rep.callsMonth ?? 0;
+    const rep     = d[key]            ?? {};
+    const mcaRep  = mcaReps[key]      ?? {};
+    const lts     = rep.ltsMonth      ?? 0;
+    // Si CC no tiene llamadas propias en call_records, usar las del rep en MCA
+    // (mismos reps manejan ambos tipos — no se puede separar)
+    const calls   = useMcaCallsFallback ? (mcaRep.callsMonth ?? 0) : (rep.callsMonth ?? 0);
     document.getElementById(`${prefix}-cc-lts`).textContent   = fmt(lts);
     document.getElementById(`${prefix}-cc-calls`).textContent = fmt(calls);
     document.getElementById(`${prefix}-cc-lt`).textContent    = pct(lts, calls);
-    // call-type breakdown no disponible para CC → 0
     for (const sfx of ['callnow','sched','cold','inbound']) {
       const el = document.getElementById(`${prefix}-cc-${sfx}`);
       if (el) el.textContent = '0';
@@ -1132,32 +1133,40 @@ function renderCcReps(d, globalCalls) {
 
 async function loadCcFunnel() {
   try {
-    const r = await fetch('/api/cc');
-    if (!r.ok) return;
-    const d = await r.json();
+    const [rCc, rMca, rMcaReps] = await Promise.all([
+      fetch('/api/cc'),
+      fetch('/api/mca'),
+      fetch('/api/mca-reps'),
+    ]);
+    if (!rCc.ok) return;
+    const d       = await rCc.json();
     if (d.error) return;
+    const mca     = rMca.ok     ? await rMca.json()     : {};
+    const mcaReps = rMcaReps.ok ? await rMcaReps.json() : {};
 
     const fmt = n  => (n != null ? n.toLocaleString('es-CL') : '0');
-    const pct = (a, b) => (a != null && b ? (a / b * 100).toFixed(2) + '%' : '0%');
+    const pct = (a, b) => (a && b ? (a / b * 100).toFixed(2) + '%' : '0%');
 
-    const tot      = d._totals ?? {};
-    // Llamadas: usar total de _totals (suma de todos los reps CC)
-    const ccCalls  = tot.callsTotal  ?? 0;
-    const ccCallsM = tot.callsMonth  ?? 0;
+    const tot = d._totals ?? {};
 
-    document.getElementById('cc-leads').textContent      = fmt(tot.leadsActive ?? 0);
-    document.getElementById('cc-blasted').textContent    = '0';   // requiere TT — no disponible
-    document.getElementById('cc-calls').textContent      = fmt(ccCalls);
-    document.getElementById('cc-lts').textContent        = fmt(tot.ltsTotal ?? 0);
-    document.getElementById('cc-noshows').textContent    = '0';   // CENTURY no tiene stage No Show
-    document.getElementById('cc-noshow-pct').textContent = '0%';
-    document.getElementById('cc-rate-sms').textContent   = '0%';  // sin datos TT
-    document.getElementById('cc-sms-call-pct').textContent = '0%';
-    const rateCallLt = ccCalls ? (tot.ltsTotal ?? 0) / ccCalls : 0;
+    // Llamadas CC: si call_records no tiene registros CC, usar valores globales de MCA
+    // (los mismos reps manejan MCA y CC — no se puede separar por pipeline)
+    const ccCallsRaw = tot.callsTotal ?? 0;
+    const ccCalls    = ccCallsRaw > 0 ? ccCallsRaw : (mca.callsTotal ?? 0);
+    const ccCallsM   = ccCallsRaw > 0 ? (tot.callsMonth ?? 0) : (mca.callsMonth ?? 0);
+
+    document.getElementById('cc-leads').textContent         = fmt(tot.leadsActive ?? 0);
+    document.getElementById('cc-blasted').textContent       = '0';
+    document.getElementById('cc-calls').textContent         = fmt(ccCalls);
+    document.getElementById('cc-lts').textContent           = fmt(tot.ltsTotal ?? 0);
+    document.getElementById('cc-noshows').textContent       = '0';
+    document.getElementById('cc-noshow-pct').textContent    = '0%';
+    document.getElementById('cc-rate-sms').textContent      = '0%';
+    document.getElementById('cc-sms-call-pct').textContent  = '0%';
     document.getElementById('cc-rate-lt').textContent       = pct(tot.ltsTotal, ccCalls);
     document.getElementById('cc-call-lt-pct').textContent   = pct(tot.ltsTotal, ccCalls);
 
-    renderCcReps(d, ccCalls);
+    renderCcReps(d, mcaReps, ccCallsRaw === 0);
   } catch(e) { console.error('loadCcFunnel:', e); }
 }
 

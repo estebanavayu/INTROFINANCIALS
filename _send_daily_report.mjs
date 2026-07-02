@@ -47,7 +47,9 @@ const smsM    = g.smsMonth   ?? 0;
 const mcaLtsM    = m.ltsMonth             ?? 0;
 const ccLtsM     = cc._totals?.ltsMonth   ?? Math.max(0, ltsM - mcaLtsM);
 const ccLtsTot   = cc._totals?.ltsTotal   ?? Math.max(0, (g.lts ?? 0) - (m.ltsTotal ?? 0));
-const ccCallsM   = cc._totals?.callsMonth ?? 0;
+// Si CC no tiene llamadas propias (mismos reps que MCA, no se puede separar), usar global
+const ccCallsRaw = cc._totals?.callsMonth ?? 0;
+const ccCallsM   = ccCallsRaw > 0 ? ccCallsRaw : callsM;
 const ccLeads    = cc._totals?.leadsActive ?? 0;
 const CC_REPS    = ['camila', 'maria', 'sara', 'unknown'];
 const ccRepNames = { camila: 'Camila', maria: 'Maria', sara: 'Sara', unknown: 'Sin asignar' };
